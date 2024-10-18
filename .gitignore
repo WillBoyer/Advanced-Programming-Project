@@ -1,0 +1,6 @@
+.vs/
+*/.vs/
+CSharpApp/bin/
+CSharpApp/obj/
+FSharpLibrary/bin/
+FSharpLibrary/obj/
