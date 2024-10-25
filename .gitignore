@@ -1,1 +1,7 @@
 .vs/
+CSharpApp/bin/
+CSharpApp/obj/
+CSharpInterpreterGUI/bin/
+CSharpInterpreterGUI/obj/
+FSharpLib/bin/
+FSharpLib/obj/
