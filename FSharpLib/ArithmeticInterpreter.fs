@@ -4,19 +4,72 @@ open System
 
 
 type terminal = 
-    | Add | Sub | Mul | Div | Mod | Pow | Lpar | Rpar | Num of int | Invalid of char
+    | Add | Sub | Mul | Div | Mod | Pow | Lpar | Rpar 
+    | NumInt of int 
+    | NumFloat of float 
+    | Variable of string
+    | Assign
+    | Invalid of char
+
+
+let mutable symbolTable = []
+
+
+let setVariable name value =
+    symbolTable <- (name, value) :: List.filter (fun (n, _) -> n <> name) symbolTable
+
+let getVariable name =
+    match List.tryFind (fun (n, _) -> n = name) symbolTable with
+    | Some (_, value) -> value
+    | None -> raise (System.Exception(sprintf "Variable '%s' is not defined" name))
 
 let str2lst s = [for c in s -> c]
 let isblank c = System.Char.IsWhiteSpace c
 let isdigit c = System.Char.IsDigit c
+let isalpha c = System.Char.IsLetter c
 let lexError = System.Exception("Lexer error")
 let intVal (c:char) = (int)((int)c - (int)'0')
 let parseError = System.Exception("Parser error")
+let mutable isFloatDetected = false
+
+
+let rec power baseVal exponent =
+    match exponent with
+    | exp when exp < 0.0 -> 1.0 / (power baseVal (-exp))  
+    | 0.0 -> 1.0  
+    | 1.0 -> baseVal 
+    | exp when exp % 2.0 = 0.0 -> 
+        let halfPower = power baseVal (exp / 2.0)
+        halfPower * halfPower  
+    | _ -> baseVal * power baseVal (exponent - 1.0) 
+
 
 let rec scInt(iStr, iVal) = 
     match iStr with
     | c :: tail when isdigit c -> scInt(tail, 10 * iVal + intVal c)
     | _ -> (iStr, iVal)
+
+let rec scFloat(fStr, fVal, divisor) =
+    match fStr with
+    | c :: tail when isdigit c -> scFloat(tail, fVal + float (intVal c) / divisor, divisor * 10.0)
+    | _ -> scExp(fStr, fVal)
+
+and scExp(fStr, fVal) =
+    match fStr with
+    | 'E' :: '+' :: tail -> scInt(tail, 0) |> fun (rest, exp) -> (rest, fVal * power 10.0 (float exp))
+    | 'E' :: '-' :: tail -> scInt(tail, 0) |> fun (rest, exp) -> (rest, fVal * power 10.0 (float -exp))
+    | 'E' :: tail -> scInt(tail, 0) |> fun (rest, exp) -> (rest, fVal * power 10.0 (float exp))
+    | _ -> (fStr, fVal)
+
+//and scExp(fStr, fVal) =
+//    match fStr with
+//    | 'E' :: sign :: tail when sign = '+' || sign = '-' -> 
+//        let (rest, exp) = scFloat(tail, 0.0, 1.0) 
+//        (rest, fVal * power 10.0 (if sign = '+' then exp else -exp))
+//    | 'E' :: tail -> 
+//        let (rest, exp) = scFloat(tail, 0.0, 1.0)
+//        (rest, fVal * power 10.0 exp)
+//    | _ -> (fStr, fVal)
 
 
 let lexer input = 
@@ -31,48 +84,87 @@ let lexer input =
         | '^'::tail -> Pow :: scan tail
         | '('::tail -> Lpar :: scan tail
         | ')'::tail -> Rpar :: scan tail
+        | '='::tail -> Assign :: scan tail
         | c :: tail when isblank c -> scan tail
         | c :: tail when isdigit c -> 
             let (iStr, iVal) = scInt(tail, intVal c)
-            Num iVal :: scan iStr
+            match iStr with
+            | '.' :: rest -> 
+                let (fStr, fVal) = scFloat(rest, float iVal, 10.0)              
+                isFloatDetected <- true 
+                NumFloat fVal :: scan fStr
+            | 'E' :: _ -> 
+                let (expStr, expVal) = scExp(tail, float iVal)
+                NumFloat expVal :: scan expStr
+            | _ -> NumInt iVal :: scan iStr
+        | c :: tail when isalpha c -> 
+            let rec readVar chars name =
+                match chars with
+                | h :: t when isalpha h || isdigit h -> readVar t (name + string h)
+                | _ -> (chars, name)
+            let (remaining, varName) = readVar tail (string c)
+            Variable varName :: scan remaining
         | c :: tail -> Invalid c :: scan tail 
     scan (str2lst input)
+
 
 
 let rec parseNeval tList = 
     let rec E tList = (T >> Eopt) tList
     and Eopt (tList, value) = 
         match tList with
-        | Add :: tail -> let (tLst, tval) = T tail
-                         Eopt (tLst, value + tval)
-        | Sub :: tail -> let (tLst, tval) = T tail
-                         Eopt (tLst, value - tval)
+        | Add :: tail -> 
+            let (tLst, tval) = T tail
+            Eopt (tLst, value + tval)
+        | Sub :: tail -> 
+            let (tLst, tval) = T tail
+            Eopt (tLst, value - tval)
         | _ -> (tList, value)
-    and T tList = (NR >> Topt) tList
+    and T tList = (F >> Topt) tList
     and Topt (tList, value) =
         match tList with
-        | Mul :: tail -> let (tLst, tval) = NR tail
-                         Topt (tLst, value * tval)
-        | Div :: tail -> let (tLst, tval) = NR tail
-                         Topt (tLst, value / tval)
-        | Mod :: tail -> let (tLst, tval) = NR tail
-                         Topt (tLst, value % tval)
-        | Pow :: tail -> let (tLst, tval) = NR tail
-                         Topt (tLst, int (float value ** float tval)) 
+        | Mul :: tail -> 
+            let (tLst, tval) = F tail
+            Topt (tLst, value * tval)
+        | Div :: tail -> 
+            let (tLst, tval) = F tail
+            Topt (tLst, value / tval)
+        | Mod :: tail -> 
+            let (tLst, tval) = F tail
+            Topt (tLst, value % tval)
         | _ -> (tList, value)
-    and NR tList =
+    and F tList = (P >> Fopt) tList
+    and Fopt (tList, value) =
+        match tList with
+        | Pow :: tail ->  
+            let (tLst, tval) = P tail
+            Fopt (tLst, power value tval)  
+        | _ -> (tList, value)
+    and P tList = 
         match tList with 
-        | Num value :: tail -> (tail, value)
+        | NumInt value :: tail -> (tail, value)
+        | NumFloat value :: tail -> (tail, value)
+        | Variable varName :: tail -> 
+            (tail, getVariable varName)
         | Lpar :: tail -> 
             let (tLst, tval) = E tail
             match tLst with 
             | Rpar :: tail -> (tail, tval)
             | _ -> raise parseError  
         | Sub :: tail -> 
-            let (tLst, tval) = NR tail 
-            (tLst, -tval)  
-        | _ -> raise parseError  
+            let (tLst, tval) = P tail 
+            (tLst, -tval)
+        | _ -> raise parseError
     E tList
+
+
+let parseAssignment tList =
+    match tList with
+    | Variable varName :: Assign :: tail -> 
+        let (remaining, value) = parseNeval tail
+        setVariable varName value
+        remaining, value
+    | _ -> parseNeval tList
 
 
 let validateTokens tokenList parsedList =
@@ -82,8 +174,66 @@ let validateTokens tokenList parsedList =
     | _ -> raise parseError  
 
 
-let evaluateExpression input =
-    let tokenList = lexer input
-    let parsedList, result = parseNeval tokenList
-    validateTokens tokenList parsedList
-    result
+let splitString (delimiter: char) (input: string) =
+    let mutable segments = []
+    let mutable currentSegment = ""
+
+    for c in input do
+        if c = delimiter then
+            if currentSegment <> "" then
+                segments <- currentSegment :: segments
+                currentSegment <- ""  
+        else
+            currentSegment <- currentSegment + string c 
+
+    
+    if currentSegment <> "" then
+        segments <- currentSegment :: segments
+
+    
+    List.rev segments
+
+
+
+let evaluateExpression (input: string) : string =
+    let statements = splitString ';' input
+    let mutable lastResult: float = 0.0  
+
+    for statement in statements do
+        let trimmedStatement = statement.Trim()
+        if trimmedStatement <> "" then
+            let tokenList = lexer trimmedStatement
+            let (parsedList, result) = parseAssignment tokenList
+
+            validateTokens tokenList parsedList
+            lastResult <- result  
+            System.Diagnostics.Debug.WriteLine(result)
+
+    let formattedResult =
+        if isFloatDetected then
+            sprintf "%.1f" lastResult 
+        else
+            lastResult.ToString() 
+
+    System.Diagnostics.Debug.WriteLine(formattedResult)  
+    isFloatDetected <- false  
+    formattedResult  
+
+let helpInfo () =
+    let info = """
+    Valid Tokens:
+    - Operators: + (Add), - (Subtract), * (Multiply), / (Divide), % (Modulus), ^ (Power), E (Exponential)
+    - Parentheses: ( ) for grouping expressions
+    - Assignment: = to assign values to variables
+    - Numbers: Integers (e.g., 42) and Floating-point (e.g., 3.14)
+    - Variables: Alphanumeric names starting with a letter (e.g., x, myVar)
+    
+    Syntax:
+    - Expressions can include numbers, variables, and operators.
+    - Example of an expression: (3 + 4) * x - 2.5
+    - Variable assignment: x = 5
+    - Multiple statements can be separated by semicolons: x = 5; y = 3 + x; z = y * 2
+    - Exponential: 2E5
+    """
+    info
+
