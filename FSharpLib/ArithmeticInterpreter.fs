@@ -109,6 +109,39 @@ let lexer input =
         | c :: tail -> Invalid c :: scan tail 
     scan (str2lst input)
 
+let getInputString() : string = 
+    Console.Write("Enter an expression: ")
+    Console.ReadLine()
+
+// Grammar in BNF:
+// <E>        ::= <T> <Eopt>
+// <Eopt>     ::= "+" <T> <Eopt> | "-" <T> <Eopt> | <empty>
+// <T>        ::= <NR> <Topt>
+// <Topt>     ::= "*" <NR> <Topt> | "/" <NR> <Topt> | <empty>
+// <NR>       ::= "Num" <value> | "(" <E> ")"
+
+let parser tList = 
+    let rec E tList = (T >> Eopt) tList         // >> is forward function composition operator: let inline (>>) f g x = g(f x)
+    and Eopt tList = 
+        match tList with
+        | Add :: tail -> (T >> Eopt) tail
+        | Sub :: tail -> (T >> Eopt) tail
+        | _ -> tList
+    and T tList = (NR >> Topt) tList
+    and Topt tList =
+        match tList with
+        | Mul :: tail -> (NR >> Topt) tail
+        | Div :: tail -> (NR >> Topt) tail
+        | _ -> tList
+    and NR tList =
+        match tList with 
+        | NumInt value :: tail -> tail
+        | Lpar :: tail -> match E tail with 
+                          | Rpar :: tail -> tail
+                          | _ -> raise parseError
+        | _ -> raise parseError
+    E tList
+
 let rec parseNeval tList = 
     let rec E tList = (T >> Eopt) tList
     and Eopt (tList, value) = 
