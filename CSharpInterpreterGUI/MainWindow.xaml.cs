@@ -1,4 +1,6 @@
-﻿using System;
+﻿using OxyPlot;
+using OxyPlot.Series;
+using System;
 using System.Windows;
 
 namespace CSharpInterpreterGUI
@@ -26,6 +28,11 @@ namespace CSharpInterpreterGUI
             {
                 resultTextBlock.Text = $"Error: {ex.Message}";
             }
+        }
+        private void Plot_Click(object sender, RoutedEventArgs e)
+        {
+            Plotter plotter = new Plotter();
+            plotter.Show();
         }
 
         private void Help_Click(object sender, RoutedEventArgs e)
