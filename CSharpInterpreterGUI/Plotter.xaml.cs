@@ -1,4 +1,6 @@
-﻿using System;
+﻿using OxyPlot;
+using OxyPlot.Series;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -16,9 +18,16 @@ namespace CSharpInterpreterGUI
 {
     public partial class Plotter : Window
     {
-        public Plotter()
+        public Plotter(Func<double, double> function)
         {
             InitializeComponent();
+
+            MyModel = new PlotModel { };
+            MyModel.Series.Add(new FunctionSeries(function, 0, 10, 0.1));
+
+            this.DataContext = this;
         }
+
+        public PlotModel MyModel { get; set; }
     }
 }

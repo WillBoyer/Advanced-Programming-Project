@@ -2,6 +2,7 @@
 using OxyPlot.Series;
 using System;
 using System.Windows;
+using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace CSharpInterpreterGUI
 {
@@ -31,8 +32,20 @@ namespace CSharpInterpreterGUI
         }
         private void Plot_Click(object sender, RoutedEventArgs e)
         {
-            Plotter plotter = new Plotter();
-            plotter.Show();
+            try
+            {
+                string input = inputTextBox.Text;
+
+                // Use double to handle both int and float results
+                Func<double, double> function = ArithmeticInterpreter.evaluateFunction(input);
+
+                Plotter plotter = new Plotter(function);
+                plotter.Show();
+            }
+            catch (Exception ex)
+            {
+                
+            }
         }
 
         private void Help_Click(object sender, RoutedEventArgs e)
