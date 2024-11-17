@@ -18,12 +18,12 @@ namespace CSharpInterpreterGUI
 {
     public partial class Plotter : Window
     {
-        public Plotter(Func<double, double> function)
+        public Plotter(Func<double, double> function, int xMinimum, int xMaximum)
         {
             InitializeComponent();
 
             MyModel = new PlotModel { };
-            MyModel.Series.Add(new FunctionSeries(function, 0, 10, 0.1));
+            MyModel.Series.Add(new FunctionSeries(function, xMinimum, xMaximum, 0.1));
 
             this.DataContext = this;
         }

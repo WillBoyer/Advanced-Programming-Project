@@ -248,8 +248,9 @@ let evaluateExpression (input: string) : string =
         let trimmedStatement = statement.Trim()
         if trimmedStatement <> "" then
             let tokenList = lexer trimmedStatement
+            System.Diagnostics.Debug.WriteLine(tokenList)
             let (parsedList, result) = parseAssignment tokenList
-
+            System.Diagnostics.Debug.WriteLine(parsedList)
             validateTokens tokenList parsedList
             lastResult <- result  
             System.Diagnostics.Debug.WriteLine(result)
@@ -262,7 +263,21 @@ let evaluateExpression (input: string) : string =
 
     System.Diagnostics.Debug.WriteLine(formattedResult)  
     isFloatDetected <- false  
-    formattedResult  
+    formattedResult
+
+//let plotExpression (input: string) : Func<double, double> = 
+//    let statement = input.Trim()
+
+//    let tokenList = lexer statement
+//    System.Diagnostics.Debug.WriteLine(tokenList)
+//    let (parsedList, result) = parseAssignment tokenList
+//    System.Diagnostics.Debug.WriteLine(parsedList)
+//    validateTokens tokenList parsedList
+//    System.Diagnostics.Debug.WriteLine(result)
+
+
+    
+//    outputFunction
 
 let helpInfo () =
     let info = """

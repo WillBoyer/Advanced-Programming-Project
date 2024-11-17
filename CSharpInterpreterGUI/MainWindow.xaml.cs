@@ -1,5 +1,6 @@
 ﻿using OxyPlot;
 using OxyPlot.Series;
+using OxyPlot.Wpf;
 using System;
 using System.Windows;
 using static System.Runtime.InteropServices.JavaScript.JSType;
@@ -34,17 +35,34 @@ namespace CSharpInterpreterGUI
         {
             try
             {
-                string input = inputTextBox.Text;
+                string functionInput = inputTextBox.Text;
 
-                // Use double to handle both int and float results
-                Func<double, double> function = ArithmeticInterpreter.evaluateFunction(input);
+                int xMinimum = Int32.Parse(xMinTextBox.Text);
+                int xMaximum = Int32.Parse(xMaxTextBox.Text);
 
-                Plotter plotter = new Plotter(function);
+                if (xMinimum >= xMaximum)
+                {
+                    throw new Exception("Minimum value of x must be lower than the maximum value.");
+                }
+
+                Func<double, double> userFunction = x =>
+                {
+                    string modifiedInput = functionInput.Replace("x", x.ToString());
+                    string evaluatedValue = ArithmeticInterpreter.evaluateExpression(modifiedInput);
+                    if (double.TryParse(evaluatedValue, out double y))
+                    {
+                        return y;
+                    }
+                    return double.NaN;
+                };
+
+                Plotter plotter = new Plotter(userFunction, xMinimum, xMaximum);
                 plotter.Show();
             }
             catch (Exception ex)
             {
-                
+                //resultTextBlock.Text = $"Error: {ex.Message}";
+                MessageBox.Show(ex.Message, "Alert", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
 
@@ -52,6 +70,11 @@ namespace CSharpInterpreterGUI
         {
             string helpMessage = ArithmeticInterpreter.helpInfo(); // Call the help function
             MessageBox.Show(helpMessage, "Help", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+
+        private void NumericTextBox_PreviewTextInput(object sender, System.Windows.Input.TextCompositionEventArgs e)
+        {
+
         }
     }
 }
