@@ -16,6 +16,7 @@ type terminal =
     | Variable of string
     | Assign
     | Invalid of char
+    | For | To | Step
 
 let mutable symbolTable = []
 
@@ -34,7 +35,15 @@ let isalpha c = System.Char.IsLetter c
 let lexError = System.Exception("Lexer error")
 let intVal (c:char) = (int)((int)c - (int)'0')
 let parseError = System.Exception("Parser error")
-let mutable isFloatDetected = false
+type State = {
+    IsFloatDetected: bool
+    Segments: string list
+    CurrentSegment: string
+    lastResult: float
+}
+
+let initialState = { IsFloatDetected = false; Segments = []; CurrentSegment = ""; lastResult = 0.0 }
+ 
 
 let rec power baseVal exponent =
     match exponent with
@@ -63,6 +72,21 @@ and scExp(fStr, fVal) =
     | 'E' :: tail -> scInt(tail, 0) |> fun (rest, exp) -> (rest, fVal * power 10.0 (float exp))
     | _ -> (fStr, fVal)
 
+let addComplex (a: Complex) (b: Complex) =
+    { Real = a.Real + b.Real; Imaginary = a.Imaginary + b.Imaginary }
+
+let subComplex (a: Complex) (b: Complex) =
+    { Real = a.Real - b.Real; Imaginary = a.Imaginary - b.Imaginary }
+
+let mulComplex (a: Complex) (b: Complex) =
+    { Real = a.Real * b.Real - a.Imaginary * b.Imaginary; 
+      Imaginary = a.Real * b.Imaginary + a.Imaginary * b.Real }
+
+let divComplex (a: Complex) (b: Complex) =
+    let denom = b.Real ** 2.0 + b.Imaginary ** 2.0
+    { Real = (a.Real * b.Real + a.Imaginary * b.Imaginary) / denom;
+      Imaginary = (a.Imaginary * b.Real - a.Real * b.Imaginary) / denom }
+
 let lexer input = 
     let rec scan input =
         match input with
@@ -81,13 +105,16 @@ let lexer input =
         | 't'::'a'::'n'::tail -> Tan :: scan tail
         | 'e'::'x'::'p'::tail -> Exp :: scan tail
         | 'l'::'o'::'g'::tail -> Log :: scan tail
+        | 'f'::'o'::'r'::tail -> For :: scan tail  
+        | 't'::'o'::tail -> To :: scan tail       
+        | 's'::'t'::'e'::'p'::tail -> Step :: scan tail  
         | c :: tail when isblank c -> scan tail
         | c :: tail when isdigit c -> 
             let (iStr, iVal) = scInt(tail, intVal c)
             match iStr with
             | '.' :: rest -> 
                 let (fStr, fVal) = scFloat(rest, float iVal, 10.0)              
-                isFloatDetected <- true 
+                let updatedState = { initialState with IsFloatDetected = true } 
                 NumFloat fVal :: scan fStr
             | 'E' :: _ -> 
                 let (expStr, expVal) = scExp(tail, float iVal)
@@ -106,6 +133,17 @@ let lexer input =
         | c :: tail when c = 'i' -> 
             let (rest, imag) = scFloat(tail, 0.0, 10.0)
             NumComplex { Real = 0.0; Imaginary = imag } :: scan rest
+        | c :: tail when isdigit c || c = '+' || c = '-' -> 
+            let rec readNumber chars acc =
+                match chars with
+                | h :: t when isdigit h || h = '.' -> readNumber t (acc + string h)
+                | _ -> (chars, acc)
+            let (remaining, realPart) = readNumber (c :: tail) ""
+            match remaining with
+            | '+' :: 'i' :: t -> NumComplex { Real = float realPart; Imaginary = 1.0 } :: scan t
+            | '-' :: 'i' :: t -> NumComplex { Real = float realPart; Imaginary = -1.0 } :: scan t
+            | 'i' :: t -> NumComplex { Real = 0.0; Imaginary = float realPart } :: scan t
+            | _ -> NumFloat (float realPart) :: scan remaining
         | c :: tail -> Invalid c :: scan tail 
     scan (str2lst input)
 
@@ -114,11 +152,26 @@ let getInputString() : string =
     Console.ReadLine()
 
 // Grammar in BNF:
-// <E>        ::= <T> <Eopt>
-// <Eopt>     ::= "+" <T> <Eopt> | "-" <T> <Eopt> | <empty>
-// <T>        ::= <NR> <Topt>
-// <Topt>     ::= "*" <NR> <Topt> | "/" <NR> <Topt> | <empty>
-// <NR>       ::= "Num" <value> | "(" <E> ")"
+//<E>          ::= <T> <Eopt>
+//<Eopt>       ::= "+" <T> <Eopt> | "-" <T> <Eopt> | <empty>
+//<T>          ::= <NR> <Topt>
+//<Topt>       ::= "*" <NR> <Topt> | "/" <NR> <Topt> | <empty>
+//<NR>         ::= "Num" <value> | <Complex> | "(" <E> ")"
+//<P>        ::= "Num" <value>
+//             | "(" <E> ")"
+//             | "-" <P>
+//             | <Function> <P>
+//<Function> ::= "sin" | "cos" | "tan" | "exp" | "log"
+//<Assignment> ::= <Variable> "=" <E>
+//<Rational> ::= "Num" <Numerator> "/" <Denominator>
+//<Variable> ::= <Identifier>
+//<Complex>    ::= <RealPart> "+" <ImagPart> "i" | <RealPart> "-" <ImagPart> "i"
+//<RealPart>   ::= <value>
+//<ImagPart>   ::= <value>
+//<ForLoop>    ::= "for" <Variable> "=" <Start> "to" <End> "step" <Step> "do" <E>
+//<Start>      ::= <value>
+//<End>        ::= <value>
+//<Step>       ::= <value>
 
 let parser tList = 
     let rec E tList = (T >> Eopt) tList         // >> is forward function composition operator: let inline (>>) f g x = g(f x)
@@ -171,7 +224,11 @@ let rec parseNeval tList =
         match tList with
         | Pow :: tail ->  
             let (tLst, tval) = P tail
-            Fopt (tLst, power value tval)  
+            Fopt (tLst, power value tval) 
+        //| Add :: NumComplex c :: tail -> Fopt (tail, addComplex value c)
+        //| Sub :: NumComplex c :: tail -> Fopt (tail, subComplex value c)
+        //| Mul :: NumComplex c :: tail -> Fopt (tail, mulComplex value c)
+        //| Div :: NumComplex c :: tail -> Fopt (tail, divComplex value c)    
         | _ -> (tList, value)
     and P tList = 
         match tList with 
@@ -179,8 +236,8 @@ let rec parseNeval tList =
         | NumFloat value :: tail -> (tail, value)
         | NumRational { Numerator = num; Denominator = denom } :: tail -> 
             (tail, float num / float denom)
-        //| NumComplex { Real = real; Imaginary = imag } :: tail -> 
-            //(tail, Complex(real, imag))
+        //| NumComplex { Real = real; Imaginary = imag } :: tail ->
+        //    (tail, (real, imag))  
         | Variable varName :: tail -> 
             (tail, getVariable varName)
         | Lpar :: tail -> 
@@ -206,7 +263,7 @@ let rec parseNeval tList =
         | Log :: tail -> 
             let (tLst, tval) = P tail
             (tLst, Math.Log(tval))
-        | _ -> raise parseError
+        | _ ->  raise parseError
     E tList
 
 let parseAssignment tList =
@@ -223,46 +280,146 @@ let validateTokens tokenList parsedList =
     | Invalid c :: _ -> raise (System.Exception(sprintf "Invalid character: '%c'" c))
     | _ -> raise parseError  
 
+
+let rec parseForLoop tokens =
+    let tokenString = String.Join(" ", List.map (fun t -> t.ToString()) tokens)
+    System.Diagnostics.Debug.WriteLine("Parsing tokens: " + tokenString)
+
+    match tokens with
+    | For :: Variable varName :: To :: NumInt start :: Step :: NumInt step :: tail ->
+        let loopCode = 
+            [Variable varName; Assign; NumInt start; To; NumInt (start + step); Step; NumInt step; Lpar] 
+        loopCode @ tail  
+    | _ -> tokens  
+
+
+
 let splitString (delimiter: char) (input: string) =
-    let mutable segments = []
-    let mutable currentSegment = ""
+    let rec processInput state input =
+        match input with
+        | [] -> 
+            
+            if state.CurrentSegment <> "" then
+                { state with Segments = state.CurrentSegment :: state.Segments }
+            else
+                state  
+        | c :: rest -> 
+            if c = delimiter then
+                
+                let updatedState = 
+                    if state.CurrentSegment <> "" then
+                        { state with Segments = state.CurrentSegment :: state.Segments; CurrentSegment = "" }
+                    else
+                        state
+                processInput updatedState rest
+            else
+                
+                processInput { state with CurrentSegment = state.CurrentSegment + string c } rest
 
-    for c in input do
-        if c = delimiter then
-            if currentSegment <> "" then
-                segments <- currentSegment :: segments
-                currentSegment <- ""  
-        else
-            currentSegment <- currentSegment + string c 
+    let finalState = processInput initialState (List.ofSeq input)
 
-    if currentSegment <> "" then
-        segments <- currentSegment :: segments
+    List.rev finalState.Segments
 
-    List.rev segments
 
 let evaluateExpression (input: string) : string =
     let statements = splitString ';' input
-    let mutable lastResult: float = 0.0  
 
-    for statement in statements do
+    let processStatement (state: State) (statement: string) : State =
         let trimmedStatement = statement.Trim()
         if trimmedStatement <> "" then
             let tokenList = lexer trimmedStatement
             let (parsedList, result) = parseAssignment tokenList
 
             validateTokens tokenList parsedList
-            lastResult <- result  
             System.Diagnostics.Debug.WriteLine(result)
 
-    let formattedResult =
-        if isFloatDetected then
-            sprintf "%.2f" lastResult 
+            { state with lastResult = result }
         else
-            lastResult.ToString() 
+            state
 
-    System.Diagnostics.Debug.WriteLine(formattedResult)  
-    isFloatDetected <- false  
-    formattedResult  
+    let finalState =
+        statements
+        |> List.fold processStatement initialState
+
+    let formattedResult =
+        if initialState.IsFloatDetected then
+            sprintf "%.2f" finalState.lastResult
+        else
+            finalState.lastResult.ToString()
+
+    System.Diagnostics.Debug.WriteLine(formattedResult)
+
+    formattedResult
+
+
+let evaluatePolynomial (input: string) : string =
+        let tokenList = lexer input
+
+        //validateTokensForPolynomials tokenList
+
+        "Evaluated polynomial"
+
+let evaluatePolynomialForLoop (input: string) (expression: string) : float list * float list =
+    if input.Contains("x") then
+        let tokenListForLoop = lexer input
+        let loopCode = parseForLoop tokenListForLoop
+
+        if (List.exists (fun token -> token = For) loopCode) then
+            let extractLoopValues tokenListForLoop =
+                System.Diagnostics.Debug.WriteLine($"Token List: {tokenListForLoop}")
+                match tokenListForLoop with
+                | [For; Variable _; Assign; NumInt startX; To; NumInt endX; Step; NumInt step] ->
+                    (float startX, float endX, float step) 
+                | [For; Variable _; Assign; NumInt startX; To; NumInt endX; Step; NumFloat step] ->
+                    (float startX, float endX, step) 
+                | [For; Variable _; Assign; NumFloat startX; To; NumFloat endX; Step; NumFloat step] ->
+                    (startX, endX, step) 
+                | [For; Variable _; Assign; Sub; NumInt startX; To; NumInt endX; Step; NumInt step] ->
+                    (-float startX, float endX, float step) 
+                | [For; Variable _; Assign; Sub; NumInt startX; To; NumInt endX; Step; NumFloat step] ->
+                    (-float startX, float endX, float step)
+                | [For; Variable _; Assign; Sub; NumFloat startX; To; NumFloat endX; Step; NumFloat step] ->
+                    (-startX, endX, step) 
+                | [For; Variable _; Assign; NumInt startX; To; Sub; NumInt endX; Step; NumInt step] ->
+                    (float startX, -float endX, float step) 
+                | [For; Variable _; Assign; NumFloat startX; To; Sub; NumFloat endX; Step; NumFloat step] ->
+                    (startX, -endX, step) 
+                 | [For; Variable _; Assign; NumInt startX; To; NumInt endX; Step; Sub; NumInt step] ->
+                    (float startX, float endX, -float step) 
+                | [For; Variable _; Assign; NumFloat startX; To; NumFloat endX; Step; Sub; NumFloat step] ->
+                    (startX, endX, - step) 
+                | _ ->
+                    failwithf "Unexpected loop code format: %A" tokenListForLoop
+
+            let (startX, endX, step) = extractLoopValues loopCode
+            System.Diagnostics.Debug.WriteLine($"startX: {startX}, endX: {endX}, step: {step}")
+
+            let rec interpolate currentX acc =
+                if currentX > endX then
+                    acc  
+                else
+                    let currentExpression = expression.Replace("x", currentX.ToString("G")) 
+                    
+                    let y = evaluateExpression currentExpression |> float
+
+                    interpolate (currentX + step) ((currentX, y) :: acc)
+
+            let points = interpolate startX [] |> List.rev  
+
+            let xValues = List.map fst points
+            let yValues = List.map snd points
+
+            System.Diagnostics.Debug.WriteLine($"xValues: {xValues}")
+            System.Diagnostics.Debug.WriteLine($"yValues: {yValues}")
+
+            (xValues, yValues)
+        else
+            failwith "Invalid for loop statement"
+    else
+        failwith "Input is not a polynomial"
+
+
+
 
 let helpInfo () =
     let info = """
@@ -306,4 +463,3 @@ let helpInfo () =
     - Variables, rational numbers, and complex numbers can be used within expressions.
     """
     info
-
