@@ -250,7 +250,7 @@ let rec parseNeval tList =
             (tLst, -tval)
         | Cos :: tail -> 
             let (tLst, tval) = P tail
-            (tLst, Math.Cos(tval))
+            (tLst, Math.Cos(tval)) //Math.Cos(tval* Math.PI / 180.0) for degree. But wont give a sin wave in the plot
         | Sin :: tail -> 
             let (tLst, tval) = P tail
             (tLst, Math.Sin(tval))
@@ -347,17 +347,51 @@ let evaluateExpression (input: string) : string =
         else
             finalState.lastResult.ToString()
 
-    System.Diagnostics.Debug.WriteLine(formattedResult)
+    System.Diagnostics.Debug.WriteLine(formattedResult) 
 
     formattedResult
 
-
 let evaluatePolynomial (input: string) : string =
-        let tokenList = lexer input
+    try
+        let trimmedInput = input.Trim()
+        System.Diagnostics.Debug.WriteLine(trimmedInput)
 
-        //validateTokensForPolynomials tokenList
+        // Check if the input contains 'y', '=', and 'x' (basic validation)
+        if not (trimmedInput.Contains("y") && trimmedInput.Contains("=") && trimmedInput.Contains("x")) then
+            "Invalid polynomial. Missing 'y', '=', or 'x'."
 
-        "Evaluated polynomial"
+        // Check if the expression has a valid form: y = [expression with x]
+        else
+            let tokenList = lexer trimmedInput
+            System.Diagnostics.Debug.WriteLine("Token List: " + string tokenList)
+
+            let (parsedList, result) = parseAssignment tokenList
+            System.Diagnostics.Debug.WriteLine("Parsed List: " + string parsedList)
+            System.Diagnostics.Debug.WriteLine("Result: " + string result)
+
+            validateTokens tokenList parsedList
+
+            // Further check if the structure is correct, like "y = x + 10"
+            let equationParts = trimmedInput.Split('=')
+            if equationParts.Length <> 2 then
+                "Invalid polynomial. Should be in the form 'y = [expression]'."
+            else
+                let expression = equationParts.[1].Trim()
+                if expression.Contains("x") then
+                    "Valid polynomial."
+                else
+                    "Invalid polynomial. The expression should include 'x'."
+    with
+    | :? System.Exception as ex when ex.Message.StartsWith("Variable 'x'") && ex.Message.Contains("is not defined") ->
+        // Handle undefined variable exception
+        System.Diagnostics.Debug.WriteLine("Handled undefined variable: " + ex.Message)
+        "Valid polynomial." 
+
+    | :? System.Exception as ex ->
+        System.Diagnostics.Debug.WriteLine("Error: " + ex.Message)
+        "Invalid polynomial. Check your input expression."
+
+
 
 let evaluatePolynomialForLoop (input: string) (expression: string) : float list * float list =
     if input.Contains("x") then
