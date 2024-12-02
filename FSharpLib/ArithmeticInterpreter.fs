@@ -1,6 +1,7 @@
 ﻿module ArithmeticInterpreter
 
 open System
+open System.Text.RegularExpressions
 
 
 
@@ -8,7 +9,7 @@ type Rational = { Numerator: int; Denominator: int }
 type Complex = { Real: float; Imaginary: float }
 
 type terminal = 
-    | Add | Sub | Mul | Div | Mod | Pow | Cos | Sin | Tan | Exp | Log | Lpar | Rpar 
+    | Add | Sub | Mul | Div | Mod | Pow | Cos | Sin | Tan | Exp | Log | Lpar | Rpar | Sqrt
     | NumInt of int 
     | NumFloat of float 
     | NumRational of Rational
@@ -17,16 +18,137 @@ type terminal =
     | Assign
     | Invalid of char
     | For | To | Step
+    | Derivative of string
+
+// Define the expression types with new constructors
+type Expr =
+    | Const of float
+    | Var of string
+    | AddCalculus of Expr * Expr
+    | SubCalculus of Expr * Expr
+    | MulCalculus of Expr * Expr
+    | DivCalculus of Expr * Expr
+    | PowCalculus of Expr * Expr
+
+// Differentiation function
+let rec differentiate expr var =
+    match expr with
+    | Const _ -> Const 0.0
+    | Var v -> if v = var then Const 1.0 else Const 0.0
+    | AddCalculus (u, v) -> AddCalculus (differentiate u var, differentiate v var)
+    | SubCalculus (u, v) -> SubCalculus (differentiate u var, differentiate v var)
+    | MulCalculus (u, v) -> 
+        AddCalculus (MulCalculus (differentiate u var, v), MulCalculus (u, differentiate v var))
+    | DivCalculus (u, v) ->
+        DivCalculus (
+            SubCalculus (
+                MulCalculus (differentiate u var, v),
+                MulCalculus (u, differentiate v var)
+            ),
+            PowCalculus (v, Const 2.0)
+        )
+    | PowCalculus (u, Const n) -> 
+        // Apply the power rule correctly: n * u^(n-1) * du/dx
+        MulCalculus (
+            Const n,
+            MulCalculus (
+                PowCalculus (u, Const (n - 1.0)),
+                differentiate u var
+            )
+        )
+    | PowCalculus (_, _) -> failwith "Non-constant exponent differentiation not implemented"
+
+// Enhanced simplification function
+let rec simplify expr =
+    match expr with
+    | AddCalculus (Const 0.0, e) | AddCalculus (e, Const 0.0) -> simplify e
+    | AddCalculus (Const a, Const b) -> Const (a + b)
+    | AddCalculus (e1, e2) ->
+        let s1 = simplify e1
+        let s2 = simplify e2
+        match s1, s2 with
+        | Const 0.0, e | e, Const 0.0 -> simplify e
+        | Const a, Const b -> Const (a + b)
+        | _ -> AddCalculus (s1, s2)
+    | SubCalculus (e, Const 0.0) -> simplify e
+    | SubCalculus (Const a, Const b) -> Const (a - b)
+    | SubCalculus (e1, e2) -> 
+        let s1 = simplify e1
+        let s2 = simplify e2
+        SubCalculus (s1, s2)
+    | MulCalculus (Const 0.0, _) | MulCalculus (_, Const 0.0) -> Const 0.0
+    | MulCalculus (Const 1.0, e) | MulCalculus (e, Const 1.0) -> simplify e
+    | MulCalculus (Const a, Const b) -> Const (a * b)
+    | MulCalculus (e1, e2) -> 
+        let s1 = simplify e1
+        let s2 = simplify e2
+        MulCalculus (s1, s2)
+    | DivCalculus (Const 0.0, _) -> Const 0.0
+    | DivCalculus (e, Const 1.0) -> simplify e
+    | DivCalculus (Const a, Const b) -> Const (a / b)
+    | DivCalculus (e1, e2) -> 
+        let s1 = simplify e1
+        let s2 = simplify e2
+        DivCalculus (s1, s2)
+    | PowCalculus (e, Const 1.0) -> simplify e
+    | PowCalculus (_, Const 0.0) -> Const 1.0
+    | PowCalculus (Const a, Const b) -> Const (a ** b)
+    | PowCalculus (e1, e2) -> 
+        let s1 = simplify e1
+        let s2 = simplify e2
+        PowCalculus (s1, s2)
+    | _ -> expr
+
+// Convert the expression to a string
+let rec exprToString expr =
+    match expr with
+    | Const c -> 
+        if c % 1.0 = 0.0 then string (int c) else string c
+    | Var v -> v
+    | AddCalculus (e1, e2) -> sprintf "%s + %s" (exprToString e1) (exprToString e2)
+    | SubCalculus (e1, e2) -> sprintf "%s - %s" (exprToString e1) (exprToString e2)
+    | MulCalculus (Const c, Var v) | MulCalculus (Var v, Const c) -> 
+        if c = 1.0 then v else sprintf "%s%s" (exprToString (Const c)) v
+    | MulCalculus (e1, e2) -> sprintf "%s * %s" (exprToString e1) (exprToString e2)
+    | DivCalculus (e1, e2) -> sprintf "%s / %s" (exprToString e1) (exprToString e2)
+    | PowCalculus (e, Const n) -> sprintf "%s^%s" (exprToString e) (exprToString (Const n))
+    | PowCalculus (_, _) -> failwith "Non-constant exponent printing not implemented"
+
+// Example usage
+let expr = PowCalculus (Var "x", Const 3.0)
+let derivative = differentiate expr "x"
+let simplifiedDerivative = simplify derivative
+let result = exprToString simplifiedDerivative
+
+System.Diagnostics.Debug.WriteLine("Derivative: " + result)
+
+
+
+
+let boolArray = [| false; false |]
 
 let mutable symbolTable = []
 
 let setVariable name value =
     symbolTable <- (name, value) :: List.filter (fun (n, _) -> n <> name) symbolTable
 
+//let getVariable name =
+//    match (boolArray.[0], List.tryFind (fun (n, _) -> n = name) symbolTable) with
+//    | (true, None) -> 0.0
+//    | (false, Some (_, value)) -> value
+//    | (false, None) -> raise (System.Exception(sprintf "Variable '%s' is not defined" name))
+
+
 let getVariable name =
     match List.tryFind (fun (n, _) -> n = name) symbolTable with
     | Some (_, value) -> value
+        
     | None -> raise (System.Exception(sprintf "Variable '%s' is not defined" name))
+
+let getAllVariables () =
+    symbolTable
+    |> List.map (fun (name, value) -> sprintf "%s = %s" name (value.ToString()))
+    |> String.concat "\n"
 
 let str2lst s = [for c in s -> c]
 let isblank c = System.Char.IsWhiteSpace c
@@ -85,7 +207,7 @@ let mulComplex (a: Complex) (b: Complex) =
 let divComplex (a: Complex) (b: Complex) =
     let denom = b.Real ** 2.0 + b.Imaginary ** 2.0
     { Real = (a.Real * b.Real + a.Imaginary * b.Imaginary) / denom;
-      Imaginary = (a.Imaginary * b.Real - a.Real * b.Imaginary) / denom }
+      Imaginary = (a.Imaginary * b.Real - a.Real * b.Imaginary) / denom } 
 
 let lexer input = 
     let rec scan input =
@@ -107,7 +229,10 @@ let lexer input =
         | 'l'::'o'::'g'::tail -> Log :: scan tail
         | 'f'::'o'::'r'::tail -> For :: scan tail  
         | 't'::'o'::tail -> To :: scan tail       
-        | 's'::'t'::'e'::'p'::tail -> Step :: scan tail  
+        | 's'::'t'::'e'::'p'::tail -> Step :: scan tail
+        | 's'::'q'::'r'::'t'::tail -> Sqrt :: scan tail 
+        | 'd' :: '/' :: 'd' :: var :: '(' :: tail when Char.IsLetter var ->
+                Derivative (string var) :: Lpar :: scan tail
         | c :: tail when isblank c -> scan tail
         | c :: tail when isdigit c -> 
             let (iStr, iVal) = scInt(tail, intVal c)
@@ -150,6 +275,8 @@ let lexer input =
 let getInputString() : string = 
     Console.Write("Enter an expression: ")
     Console.ReadLine()
+
+
 
 // Grammar in BNF:
 //<E>          ::= <T> <Eopt>
@@ -231,7 +358,7 @@ let rec parseNeval tList =
         //| Div :: NumComplex c :: tail -> Fopt (tail, divComplex value c)    
         | _ -> (tList, value)
     and P tList = 
-        match tList with 
+        match tList with
         | NumInt value :: tail -> (tail, float value)
         | NumFloat value :: tail -> (tail, value)
         | NumRational { Numerator = num; Denominator = denom } :: tail -> 
@@ -240,6 +367,7 @@ let rec parseNeval tList =
         //    (tail, (real, imag))  
         | Variable varName :: tail -> 
             (tail, getVariable varName)
+        
         | Lpar :: tail -> 
             let (tLst, tval) = E tail
             match tLst with 
@@ -263,7 +391,65 @@ let rec parseNeval tList =
         | Log :: tail -> 
             let (tLst, tval) = P tail
             (tLst, Math.Log(tval))
+        | Sqrt :: tail -> 
+            let (tLst, tval) = P tail
+            (tLst, Math.Sqrt(tval))
         | _ ->  raise parseError
+    E tList
+
+let rec parseExpr tList =
+    let rec E tList = (T >> Eopt) tList
+    and Eopt (tList, expr) =
+        match tList with
+        | Add :: tail ->
+            let (tLst, rhs) = T tail
+            Eopt (tLst, AddCalculus (expr, rhs))
+        | Sub :: tail ->
+            let (tLst, rhs) = T tail
+            Eopt (tLst, SubCalculus (expr, rhs))
+        | _ -> (tList, expr)
+
+    and T tList =
+        let (tLst, lhs) = F tList
+        Topt (tLst, lhs)
+
+    and Topt (tList, lhs) =
+        match tList with
+        | Mul :: tail ->
+            let (tLst, rhs) = F tail
+            Topt (tLst, MulCalculus (lhs, rhs))
+        | Div :: tail ->
+            let (tLst, rhs) = F tail
+            Topt (tLst, DivCalculus (lhs, rhs))
+        | _ -> (tList, lhs)
+
+    and F tList =
+        let (tLst, lhs) = P tList
+        Fopt (tLst, lhs)
+
+    and Fopt (tList, lhs) =
+        match tList with
+        | Pow :: tail ->
+            let (tLst, rhs) = P tail
+            Fopt (tLst, PowCalculus (lhs, rhs))
+        | _ -> (tList, lhs)
+
+    and P tList =
+        match tList with
+        | NumInt n :: tail -> (tail, Const (float n))
+        | NumFloat n :: tail -> (tail, Const n)
+        | Variable v :: tail -> (tail, Var v)
+        | Lpar :: tail ->
+            let (tLst, expr) = E tail
+            match tLst with
+            | Rpar :: tail -> (tail, expr)
+            | _ -> raise (System.Exception "Parse error: Expected closing parenthesis.")
+        | Sub :: tail ->
+            let (tLst, expr) = P tail
+            (tLst, SubCalculus (Const 0.0, expr))  // Unary minus
+        | _ -> raise (System.Exception "Parse error: Invalid token.")
+
+    
     E tList
 
 let parseAssignment tList =
@@ -320,6 +506,34 @@ let splitString (delimiter: char) (input: string) =
 
     List.rev finalState.Segments
 
+let evaluateCalculus (input: string) : string = 
+    let removeFirstSecondAndLast list =
+        match list with
+        | Derivative "x" :: _ :: tail when tail.Length > 1 -> 
+            tail |> List.rev |> List.tail |> List.rev
+      
+        | _ -> 
+            list 
+
+    let tokenList = lexer input
+    let modifiedTokenList = removeFirstSecondAndLast tokenList
+    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string modifiedTokenList)
+
+    // Call the parseExpr function and assign the result to a variable
+    let (_, parsedExpr) = parseExpr modifiedTokenList
+    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string parsedExpr)
+
+    let derivative = differentiate parsedExpr "x"
+    let simplifiedDerivative = simplify derivative
+    let result = exprToString simplifiedDerivative
+
+    let formattedResult = result.ToString()
+
+     
+    System.Diagnostics.Debug.WriteLine(formattedResult) 
+
+    formattedResult
+
 
 let evaluateExpression (input: string) : string =
     let statements = splitString ';' input
@@ -328,12 +542,24 @@ let evaluateExpression (input: string) : string =
         let trimmedStatement = statement.Trim()
         if trimmedStatement <> "" then
             let tokenList = lexer trimmedStatement
-            let (parsedList, result) = parseAssignment tokenList
+            System.Diagnostics.Debug.WriteLine("******Token List: " + string tokenList)
 
-            validateTokens tokenList parsedList
-            System.Diagnostics.Debug.WriteLine(result)
+             
+           
+            match tokenList with
+                | Derivative "x" :: Lpar :: _ -> 
+                    tokenList 
+                    |> List.iter (fun token -> System.Diagnostics.Debug.WriteLine("Token: " + string token))
 
-            { state with lastResult = result }
+
+                    let result = evaluateCalculus trimmedStatement
+                    System.Diagnostics.Debug.WriteLine("Result from evaluateCalculus: " + result)
+                    { state with lastResult = float result } 
+                | _ -> 
+                    let (parsedList, result) = parseAssignment tokenList
+                    validateTokens tokenList parsedList
+                    System.Diagnostics.Debug.WriteLine(result)
+                    { state with lastResult = result }
         else
             state
 
@@ -350,6 +576,25 @@ let evaluateExpression (input: string) : string =
     System.Diagnostics.Debug.WriteLine(formattedResult) 
 
     formattedResult
+
+//let evaluateCalculus (input: string) : string = 
+//    let tokenList = lexer input
+
+//    // Call the parseExpr function and assign the result to a variable
+//    let (_, parsedExpr) = parseExpr tokenList
+//    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string parsedExpr)
+
+//    let derivative = differentiate parsedExpr "x"
+//    let simplifiedDerivative = simplify derivative
+//    let result = exprToString simplifiedDerivative
+
+//    let formattedResult = result.ToString()
+
+     
+//    System.Diagnostics.Debug.WriteLine(formattedResult) 
+
+//    formattedResult
+
 
 let evaluatePolynomial (input: string) : string =
     try
