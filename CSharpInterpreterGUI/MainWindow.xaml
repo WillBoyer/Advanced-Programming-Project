@@ -102,7 +102,7 @@
             <Button Content="New" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Open" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Save" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
-            <Button Content="Diff" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Differential_Click"/>
+            <Button Content="Diff" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" />
             <Button Content="Min" Width="60" Margin="0,0,10,0" Background="LightGreen" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Max" Width="60" Margin="0,0,10,0" Background="Yellow" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Close" Width="60" Margin="0,0,10,0" Background="Red" Style="{StaticResource CalcButton}" Click="Button_Click"/>
@@ -266,6 +266,9 @@
                                 <TextBox x:Name="XStepTextBox" Width="60" Text=""/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center" Margin="10,0"/>
+                            <StackPanel Orientation="Horizontal" Grid.Row="1" Grid.Column="1" Margin="0,0,0,10">
+                                <Button Content="d/dx" Width="100" Margin="0,0,10,0" Click="Differential_Click"/>
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Grid.Row="2" Grid.Column="1" Margin="0,0,0,10">
                                 <Button Content="Find Root" Width="100" Margin="0,0,10,0"/>
                             </StackPanel>
