@@ -19,6 +19,9 @@ type terminal =
     | Invalid of char
     | For | To | Step
     | Derivative of string
+    | IntegralStart
+    | Comma
+
 
 // Define the expression types with new constructors
 type Expr =
@@ -29,6 +32,12 @@ type Expr =
     | MulCalculus of Expr * Expr
     | DivCalculus of Expr * Expr
     | PowCalculus of Expr * Expr
+    | SinCalculus of Expr
+    | CosCalculus of Expr
+    | TanCalculus of Expr
+    | ExpCalculus of Expr
+    | LogCalculus of Expr
+    | Integral of Expr * Expr * Expr
 
 // Differentiation function
 let rec differentiate expr var =
@@ -56,7 +65,17 @@ let rec differentiate expr var =
                 differentiate u var
             )
         )
-    | PowCalculus (_, _) -> failwith "Non-constant exponent differentiation not implemented"
+    | SinCalculus u -> 
+        MulCalculus (CosCalculus u, differentiate u var)
+    | CosCalculus u -> 
+        MulCalculus (Const -1.0, MulCalculus (SinCalculus u, differentiate u var))
+    | TanCalculus u -> 
+        DivCalculus (differentiate u var, PowCalculus (CosCalculus u, Const 2.0))
+    | ExpCalculus u -> 
+        MulCalculus (ExpCalculus u, differentiate u var)
+    | LogCalculus u -> 
+        DivCalculus (differentiate u var, u)
+    | _ -> failwith "Non-constant exponent differentiation not implemented"
 
 // Enhanced simplification function
 let rec simplify expr =
@@ -97,6 +116,11 @@ let rec simplify expr =
         let s1 = simplify e1
         let s2 = simplify e2
         PowCalculus (s1, s2)
+    | SinCalculus e -> SinCalculus (simplify e)
+    | CosCalculus e -> CosCalculus (simplify e)
+    | TanCalculus e -> TanCalculus (simplify e)
+    | ExpCalculus e -> ExpCalculus (simplify e)
+    | LogCalculus e -> LogCalculus (simplify e)
     | _ -> expr
 
 // Convert the expression to a string
@@ -112,7 +136,12 @@ let rec exprToString expr =
     | MulCalculus (e1, e2) -> sprintf "%s * %s" (exprToString e1) (exprToString e2)
     | DivCalculus (e1, e2) -> sprintf "%s / %s" (exprToString e1) (exprToString e2)
     | PowCalculus (e, Const n) -> sprintf "%s^%s" (exprToString e) (exprToString (Const n))
-    | PowCalculus (_, _) -> failwith "Non-constant exponent printing not implemented"
+    | SinCalculus e -> sprintf "sin(%s)" (exprToString e)
+    | CosCalculus e -> sprintf "cos(%s)" (exprToString e)
+    | TanCalculus e -> sprintf "tan(%s)" (exprToString e)
+    | ExpCalculus e -> sprintf "exp(%s)" (exprToString e)
+    | LogCalculus e -> sprintf "log(%s)" (exprToString e)
+    | _ -> failwith "Non-constant exponent printing not implemented"
 
 // Example usage
 let expr = PowCalculus (Var "x", Const 3.0)
@@ -122,6 +151,100 @@ let result = exprToString simplifiedDerivative
 
 System.Diagnostics.Debug.WriteLine("Derivative: " + result)
 
+let trapezoidalRule (f: float -> float) (a: float) (b: float) (n: int) =
+    let h = (b - a) / float n
+    let mutable result = (f a + f b) / 2.0
+    for i = 1 to n - 1 do
+        result <- result + f (a + h * float i)
+    result * h
+
+// Evaluate expressions
+let rec evaluate expr (var: string) (value: float) =
+    match expr with
+    | Const c -> c
+    | Var v -> if v = var then value else failwith "Variable mismatch"
+    | AddCalculus (u, v) -> evaluate u var value + evaluate v var value
+    | SubCalculus (u, v) -> evaluate u var value - evaluate v var value
+    | MulCalculus (u, v) -> evaluate u var value * evaluate v var value
+    | DivCalculus (u, v) -> evaluate u var value / evaluate v var value
+    | PowCalculus (u, v) -> evaluate u var value ** evaluate v var value
+    | SinCalculus u -> Math.Sin (evaluate u var value)
+    | CosCalculus u -> Math.Cos (evaluate u var value)
+    | ExpCalculus u -> Math.Exp (evaluate u var value)
+    | LogCalculus u -> Math.Log (evaluate u var value)
+    | Integral (a, b, f) ->
+        let lower = evaluate a var value
+        let upper = evaluate b var value
+        trapezoidalRule (fun x -> evaluate f var x) lower upper 1000
+
+
+
+//let rec newtonRaphson expr var x0 tol maxIter =
+//    let rec iterate x iter =
+//        if iter >= maxIter then x
+//        else
+//            let fx = exprToString (simplify expr)
+//            let derivative = differentiate expr "x"
+//            let simplifiedDerivative = simplify derivative
+//            let dfx = exprToString simplifiedDerivative
+//            let nextX = x - (fx |> float) / (dfx |> float)
+//            if abs (nextX - x) < tol then nextX
+//            else iterate nextX (iter + 1)
+//    iterate x0 0
+
+//let root = newtonRaphson expr "x" 2.0 0.0001 100
+
+
+//let rec evaluate expr (var: string) (value: float) =
+//    match expr with
+//    | Const c -> c
+//    | Integral (f, v, a, b) -> integrate f v a b
+//    | _ -> failwith "Unsupported operation"
+
+//// Numerical integration using the Trapezoidal Rule
+//and integrate (f: Expr) (v: string) (a: float) (b: float) =
+//    let n = 1000 // Number of subintervals
+//    let h = (b - a) / float n
+//    let mutable total = 0.0
+
+//    for i = 0 to n do
+//        let x = a + h * float i
+//        let weight = if i = 0 || i = n then 0.5 else 1.0
+//        total <- total + weight * evaluate f v x
+
+//    h * total
+
+// Example: Integral of x^2 from 0 to 1
+let exampleExpr = PowCalculus (Var "x", Const 2.0)
+//let integralExpr = Integral (exampleExpr, "x", 0.0, 1.0)
+//let integralResult = evaluate integralExpr "x" 0.0 // The variable value is unused for integration
+System.Diagnostics.Debug.WriteLine("Integral Result: " + exampleExpr.ToString())
+
+//let trapezoidalRule f a b n =
+//    // Step size
+//    let h = (b - a) / float n
+//    // Compute the sum of the first and last terms
+//    let mutable result = (f a + f b) / 2.0
+//    // Sum the values at intermediate points
+//    for i in 1 .. (n - 1) do
+//        let x = a + float i * h
+//        result <- result + f x
+//    // Multiply by the step size
+//    result * h
+
+    // Function to integrate
+//let f x = x^3.0 + x^2.0 + 2.0 * x + 3.0
+
+// Limits and intervals
+let a = 0.0
+let b = 2.0
+let n = 4
+
+// Compute definite integral
+//let result1 = trapezoidalRule f a b n
+
+// Print the result
+//System.Diagnostics.Debug.WriteLine("Definite Integral of f(x) = x^2" + result1.ToString())
 
 
 
@@ -233,6 +356,7 @@ let lexer input =
         | 's'::'q'::'r'::'t'::tail -> Sqrt :: scan tail 
         | 'd' :: '/' :: 'd' :: var :: '(' :: tail when Char.IsLetter var ->
                 Derivative (string var) :: Lpar :: scan tail
+        | ('i'|'I')::'n'::'t'::'e'::'g'::'r'::'a'::'l'::'('::tail -> IntegralStart :: scan tail
         | c :: tail when isblank c -> scan tail
         | c :: tail when isdigit c -> 
             let (iStr, iVal) = scInt(tail, intVal c)
@@ -269,6 +393,7 @@ let lexer input =
             | '-' :: 'i' :: t -> NumComplex { Real = float realPart; Imaginary = -1.0 } :: scan t
             | 'i' :: t -> NumComplex { Real = 0.0; Imaginary = float realPart } :: scan t
             | _ -> NumFloat (float realPart) :: scan remaining
+        | ',' :: tail -> Comma :: scan tail
         | c :: tail -> Invalid c :: scan tail 
     scan (str2lst input)
 
@@ -446,11 +571,41 @@ let rec parseExpr tList =
             | _ -> raise (System.Exception "Parse error: Expected closing parenthesis.")
         | Sub :: tail ->
             let (tLst, expr) = P tail
-            (tLst, SubCalculus (Const 0.0, expr))  // Unary minus
+            (tLst, SubCalculus (Const 0.0, expr))
+        | Sin :: tail ->
+            let (tLst, expr) = P tail
+            (tLst, SinCalculus expr)
+        | Cos :: tail ->
+            let (tLst, expr) = P tail
+            (tLst, CosCalculus expr)
+        | Exp :: tail ->
+            let (tLst, expr) = P tail
+            (tLst, ExpCalculus expr)
+        | Log :: tail ->
+            let (tLst, expr) = P tail
+            (tLst, LogCalculus expr)
+        | IntegralStart :: rest ->
+            let (rest1, lower) = P rest
+            match rest1 with
+            | Comma :: rest2 ->
+                let (rest3, upper) = P rest2
+                match rest3 with
+                | Comma :: rest4 ->
+                    let (rest5, integrand) = E rest4
+                    match rest5 with
+                    | Rpar :: rest6 -> (rest6, Integral (lower, upper, integrand))
+                    | _ -> failwith "Expected closing parenthesis"
+                | _ -> failwith "Expected integrand after upper limit"
+            | _ -> failwith "Expected upper limit after lower limit"
         | _ -> raise (System.Exception "Parse error: Invalid token.")
 
     
     E tList
+
+    // Example usage
+let example = Integral (Const 0.0, Const 1.0, PowCalculus (Var "x", Const 2.0))
+let result1 = evaluate example "x" 0.0
+System.Diagnostics.Debug.WriteLine("Definite integral result:" + result1.ToString())
 
 let parseAssignment tList =
     match tList with
@@ -537,6 +692,9 @@ let evaluateCalculus (input: string) : string =
 
 let evaluateExpression (input: string) : string =
     let statements = splitString ';' input
+    let calculusResult = [| "" |]  
+    let flag = [| false |]  
+    System.Diagnostics.Debug.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
     let processStatement (state: State) (statement: string) : State =
         let trimmedStatement = statement.Trim()
@@ -554,7 +712,17 @@ let evaluateExpression (input: string) : string =
 
                     let result = evaluateCalculus trimmedStatement
                     System.Diagnostics.Debug.WriteLine("Result from evaluateCalculus: " + result)
-                    { state with lastResult = float result } 
+                    calculusResult.[0] <- result  
+                    flag.[0] <- true   
+                    System.Diagnostics.Debug.WriteLine("Result from evaluateCalculus###: " + calculusResult.[0])
+                    { state with lastResult = 0.0 } 
+                | IntegralStart :: _ -> 
+                    let (_, parsedExpr) = parseExpr tokenList
+                    let result = evaluate parsedExpr "x" 0.0
+                    calculusResult.[0] <- sprintf "%f" result
+                    flag.[0] <- true
+                    { state with lastResult = result }
+                    
                 | _ -> 
                     let (parsedList, result) = parseAssignment tokenList
                     validateTokens tokenList parsedList
@@ -575,7 +743,46 @@ let evaluateExpression (input: string) : string =
 
     System.Diagnostics.Debug.WriteLine(formattedResult) 
 
-    formattedResult
+    if flag.[0] = false then
+        formattedResult
+    else
+        calculusResult.[0]
+
+let example1 = "Integral(0,1,x^2)"
+let exampleResult = evaluateExpression example1
+System.Diagnostics.Debug.WriteLine("Result of Integral:" + exampleResult)
+
+
+let evaluateNumericalIntegration (input: string) (lower: float) (upper: float) (interval: float) =
+    let tokens = lexer input
+    let (_, parsedExpr) = parseExpr tokens
+
+    // Replace Integral with its inner function
+    let rec extractInnerFunction expr =
+        match expr with
+        | Integral (_, _, f) -> f  // Extract the inner function
+        | _ -> expr               // Default case for non-Integral expressions
+
+    let innerFunction = extractInnerFunction parsedExpr
+
+    let f x = evaluate innerFunction "x" x
+    let step = (upper - lower) / interval
+    let xValues = [lower .. step .. upper]
+    let yValues = xValues |> List.map f
+
+    // Debugging output
+    printfn "xValues: %A" xValues
+    printfn "yValues: %A" yValues
+
+    (xValues, yValues)
+
+let evaluateDerivativeAt (input: string) (xValue: float) : float =
+    let derivativeExpr = evaluateCalculus input
+    let tokenList = lexer derivativeExpr
+    let (_, parsedExpr) = parseExpr tokenList
+    evaluate parsedExpr "x" xValue
+
+
 
 //let evaluateCalculus (input: string) : string = 
 //    let tokenList = lexer input

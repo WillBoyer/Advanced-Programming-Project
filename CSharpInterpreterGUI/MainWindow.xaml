@@ -273,7 +273,7 @@
                                 <Button Content="Find Root" Width="100" Margin="0,0,10,0"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Grid.Row="3" Grid.Column="1" Margin="0,0,0,10">
-                                <Button Content="Definite Integral" Width="100" Margin="0,0,10,0"/>
+                                <Button Content="Definite Integral" Width="100" Margin="0,0,10,0" Click="DefiniteIntegral_Click"/>
                             </StackPanel>
                             <StackPanel Orientation="Horizontal" Grid.Row="4" Grid.Column="0" Margin="0,0,0,10">
                                 <Button Content="Update" Width="100" Margin="0,0,10,0" Click="UpdateButton_Click"/>

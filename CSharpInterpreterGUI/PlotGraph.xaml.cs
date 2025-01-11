@@ -10,7 +10,7 @@ namespace CSharpInterpreterGUI
 {
     public partial class PlotGraph : Window
     {
-        public PlotGraph(List<double> xValues, List<double> yValues)
+        public PlotGraph(List<double> xValues, List<double> yValues, bool showArea, Func<double, double> derivative = null)
         {
             InitializeComponent();
 
@@ -29,39 +29,61 @@ namespace CSharpInterpreterGUI
             {
                 Position = AxisPosition.Bottom,
                 Title = "X",
-                Minimum = -Math.Max(Math.Abs(xValues.Min()), Math.Abs(xValues.Max())),  
-                Maximum = Math.Max(Math.Abs(xValues.Min()), Math.Abs(xValues.Max())),  
+                Minimum = -Math.Max(Math.Abs(xValues.Min()), Math.Abs(xValues.Max())),
+                Maximum = Math.Max(Math.Abs(xValues.Min()), Math.Abs(xValues.Max())),
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Dot,
-                AxislineStyle = LineStyle.Solid,  
-                AxislineThickness = 2,  
-                MajorGridlineColor = OxyColors.Gray, 
+                AxislineStyle = LineStyle.Solid,
+                AxislineThickness = 2,
+                MajorGridlineColor = OxyColors.Gray,
             };
 
             var yAxis = new LinearAxis
             {
                 Position = AxisPosition.Left,
                 Title = "Y",
-                Minimum = -Math.Max(Math.Abs(yValues.Min()), Math.Abs(yValues.Max())),  
-                Maximum = Math.Max(Math.Abs(yValues.Min()), Math.Abs(yValues.Max())),  
+                Minimum = -Math.Max(Math.Abs(yValues.Min()), Math.Abs(yValues.Max())),
+                Maximum = Math.Max(Math.Abs(yValues.Min()), Math.Abs(yValues.Max())),
                 MajorGridlineStyle = LineStyle.Solid,
                 MinorGridlineStyle = LineStyle.Dot,
-                AxislineStyle = LineStyle.Solid,  
-                AxislineThickness = 2,  
-                MajorGridlineColor = OxyColors.Gray, 
+                AxislineStyle = LineStyle.Solid,
+                AxislineThickness = 2,
+                MajorGridlineColor = OxyColors.Gray,
             };
 
             // Add axes to the model
             model.Axes.Add(xAxis);
             model.Axes.Add(yAxis);
 
+            // Create an area series for the shaded region
+            if (showArea)
+            {
+                var areaSeries = new AreaSeries
+                {
+                    Title = "Area Under Curve",
+                    Color = OxyColors.Transparent,
+                    Fill = OxyColors.LightBlue,
+                    StrokeThickness = 1
+                };
+
+                // Add data points to the area series
+                for (int i = 0; i < xValues.Count; i++)
+                {
+                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
+                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));         // Baseline (y = 0)
+                }
+
+                // Add the area series to the plot model
+                model.Series.Add(areaSeries);
+            }
+
             // Create a line series for the graph
             var series = new LineSeries
             {
                 Title = "f(x)",
-                MarkerType = MarkerType.Circle,
-                MarkerSize = 3,
-                MarkerStroke = OxyColors.Red
+                MarkerType = MarkerType.None, // No markers for data points
+                StrokeThickness = 2,          // Thickness of the curve
+                Color = OxyColors.Red         // Color of the curve
             };
 
             // Add data points to the series
@@ -73,30 +95,57 @@ namespace CSharpInterpreterGUI
             // Add the series to the plot model
             model.Series.Add(series);
 
+
+            // Add tangent lines if derivative is provided
+            if (derivative != null)
+            {
+                foreach (var x in xValues.Where((_, index) => index % 10 == 0)) // Tangents at intervals
+                {
+                    double y = yValues[xValues.IndexOf(x)];
+                    double slope = derivative(x);
+
+                    double tangentStartX = x - 1;
+                    double tangentEndX = x + 1;
+                    double tangentStartY = y + slope * (tangentStartX - x);
+                    double tangentEndY = y + slope * (tangentEndX - x);
+
+                    var tangentSeries = new LineSeries
+                    {
+                        Title = $"Tangent at x={x:F2}",
+                        Color = OxyColors.Blue,
+                        StrokeThickness = 1,
+                        LineStyle = LineStyle.Dash
+                    };
+
+                    tangentSeries.Points.Add(new DataPoint(tangentStartX, tangentStartY));
+                    tangentSeries.Points.Add(new DataPoint(tangentEndX, tangentEndY));
+
+                    model.Series.Add(tangentSeries);
+                }
+            }
+
             // Add bold line through the origin (0,0) for X and Y axes
             var zeroLineX = new LineSeries
             {
                 Title = "Zero X",
-                Color = OxyColors.Black, 
-                StrokeThickness = 3, 
+                Color = OxyColors.Black,
+                StrokeThickness = 3,
                 LineStyle = LineStyle.Solid
             };
 
-            // Add points for the X-axis line (crossing 0 on the Y-axis)
-            zeroLineX.Points.Add(new DataPoint(xAxis.Minimum, 0));  
-            zeroLineX.Points.Add(new DataPoint(xAxis.Maximum, 0));  
+            zeroLineX.Points.Add(new DataPoint(xAxis.Minimum, 0));
+            zeroLineX.Points.Add(new DataPoint(xAxis.Maximum, 0));
 
             var zeroLineY = new LineSeries
             {
                 Title = "Zero Y",
-                Color = OxyColors.Black, 
-                StrokeThickness = 3, 
+                Color = OxyColors.Black,
+                StrokeThickness = 3,
                 LineStyle = LineStyle.Solid
             };
 
-            // Add points for the Y-axis line (crossing 0 on the X-axis)
-            zeroLineY.Points.Add(new DataPoint(0, yAxis.Minimum));  
-            zeroLineY.Points.Add(new DataPoint(0, yAxis.Maximum));  
+            zeroLineY.Points.Add(new DataPoint(0, yAxis.Minimum));
+            zeroLineY.Points.Add(new DataPoint(0, yAxis.Maximum));
 
             // Add the zero lines to the plot model
             model.Series.Add(zeroLineX);
@@ -106,11 +155,14 @@ namespace CSharpInterpreterGUI
             PlotView.Model = model;
         }
 
+
         // Event handler for Plot button click
         private void PlotButton_Click(object sender, RoutedEventArgs e)
         {
             
             // For now, this method just serves as a placeholder since PlotGraph is already passed data during initialization.
         }
+
+        
     }
 }
