@@ -777,10 +777,28 @@ let evaluateNumericalIntegration (input: string) (lower: float) (upper: float) (
     (xValues, yValues)
 
 let evaluateDerivativeAt (input: string) (xValue: float) : float =
-    let derivativeExpr = evaluateCalculus input
-    let tokenList = lexer derivativeExpr
-    let (_, parsedExpr) = parseExpr tokenList
-    evaluate parsedExpr "x" xValue
+    try
+        let derivativeExpr = evaluateCalculus input
+        System.Diagnostics.Debug.WriteLine($"Computed Derivative Expression: {derivativeExpr}")
+
+        let formattedExpr = Regex.Replace(derivativeExpr, @"(\d)([a-zA-Z])", "$1 * $2")
+        System.Diagnostics.Debug.WriteLine($"Formatted Derivative Expression: {formattedExpr}")
+
+        let tokenList = lexer formattedExpr
+        System.Diagnostics.Debug.WriteLine($"Derivative Tokens: {tokenList}")
+
+        let (_, parsedExpr) = parseExpr tokenList
+        System.Diagnostics.Debug.WriteLine($"Parsed Derivative Expression: {parsedExpr}")
+
+        let result = evaluate parsedExpr "x" xValue
+        System.Diagnostics.Debug.WriteLine($"Evaluated Derivative at x={xValue}: {result}")
+        result
+    with
+    | ex ->
+        System.Diagnostics.Debug.WriteLine($"Error in evaluateDerivativeAt: {ex.Message}")
+        raise ex
+
+
 
 
 

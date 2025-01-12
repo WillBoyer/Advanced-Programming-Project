@@ -5,6 +5,7 @@ using OxyPlot.Wpf;
 using System;
 using System.Diagnostics;
 using System.Linq.Expressions;
+using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -453,54 +454,318 @@ namespace CSharpInterpreterGUI
 
         private void ExpandButton_Click(object sender, RoutedEventArgs e)
         {
-            // Get the values from the TextBoxes
-            string xMinText = XMinTextBox.Text;
-            string xMaxText = XMaxTextBox.Text;
-            string xStepText = XStepTextBox.Text;
-            string loopExpression;
-            string input = displayTextBox.Text.TrimStart('>', '>').Trim();
-
-            // Try to parse the values to doubles
-            double xMin, xMax, xStep;
-
-            bool isXMinValid = double.TryParse(xMinText, out xMin);
-            bool isXMaxValid = double.TryParse(xMaxText, out xMax);
-            bool isXStepValid = double.TryParse(xStepText, out xStep);
-
-            // Check if all inputs are valid
-            if (!isXMinValid || !isXMaxValid || !isXStepValid)
+            try
             {
-                MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
-                return;
+                // Get the input expression
+                string input = displayTextBox.Text.TrimStart('>', '>').Trim();
+
+                // Validate the input
+                if (string.IsNullOrWhiteSpace(input))
+                {
+                    MessageBox.Show("Please enter a valid expression.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
+
+                // Get the values from the TextBoxes
+                string xMinText = XMinTextBox.Text;
+                string xMaxText = XMaxTextBox.Text;
+                string xStepText = XStepTextBox.Text;
+                double xMin = -5.0, xMax = 5.0, step = 0.5;
+
+                // Try to parse the input text values
+                if (!double.TryParse(xMinText, out xMin))
+                {
+                    xMin = -5.0; // Default value if parsing fails
+                }
+
+                if (!double.TryParse(xMaxText, out xMax))
+                {
+                    xMax = 5.0; // Default value if parsing fails
+                }
+
+                if (!double.TryParse(xStepText, out step) || step <= 0)
+                {
+                    step = 0.5; // Default value if parsing fails or invalid step
+                }
+
+             
+
+                bool showArea = false;
+
+                if (input.StartsWith("d/dx"))
+                {
+                    try
+                    {
+                        
+
+                        // Validate the input
+                        if (string.IsNullOrEmpty(input) || !input.StartsWith("d/dx"))
+                        {
+                            MessageBox.Show("The input must start with 'd/dx' to calculate the derivative.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
+                            return;
+                        }
+
+                        // Extract the function from the input by removing 'd/dx(' and the closing ')'
+                        string function = input.Replace("d/dx(", "").TrimEnd(')');
+                        Debug.WriteLine($"Extracted Function: {function}");
+
+                        
+
+                       
+                        var xValues = Enumerable.Range((int)(xMin / step), (int)((xMax - xMin) / step) + 1)
+                                                .Select(i => i * step)
+                                                .ToList();
+
+                        // Evaluate the function at each x value
+                        var yFunctionValues = xValues
+                            .Select(x =>
+                            {
+                                try
+                                {
+                                    // Replace 'x' in the function with the current x value
+                                    string functionWithX = function.Replace("x", x.ToString("G"));
+
+                                    // Evaluate the function using F#
+                                    string evaluatedResult = ArithmeticInterpreter.evaluateExpression(functionWithX);
+
+                                    // Parse the result into a double
+                                    return double.Parse(evaluatedResult);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error evaluating function at x={x}: {ex.Message}");
+                                    throw;
+                                }
+                            })
+                            .ToList();
+
+                        // Evaluate the derivative at each x value
+                        var yDerivativeValues = xValues
+                            .Select(x =>
+                            {
+                                try
+                                {
+                                    // Evaluate the derivative using F#
+                                    return ArithmeticInterpreter.evaluateDerivativeAt(input, x);
+                                }
+                                catch (Exception ex)
+                                {
+                                    Debug.WriteLine($"Error evaluating derivative at x={x}: {ex.Message}");
+                                    throw;
+                                }
+                            })
+                            .ToList();
+
+                        // Create the plot model
+                        plotModel = new PlotModel { Title = "Function and Derivative Plot" };
+
+                        // Add axes
+                        plotModel.Axes.Add(new LinearAxis
+                        {
+                            Position = AxisPosition.Bottom,
+                            Title = "X-Axis",
+                            Minimum = xMin,
+                            Maximum = xMax,
+                            MajorGridlineStyle = LineStyle.Solid,
+                            MinorGridlineStyle = LineStyle.Dot,
+                            MajorGridlineColor = OxyColors.Gray
+                        });
+
+                        plotModel.Axes.Add(new LinearAxis
+                        {
+                            Position = AxisPosition.Left,
+                            Title = "Y-Axis",
+                            Minimum = Math.Min(yFunctionValues.Min(), yDerivativeValues.Min()) - 1,
+                            Maximum = Math.Max(yFunctionValues.Max(), yDerivativeValues.Max()) + 1,
+                            MajorGridlineStyle = LineStyle.Solid,
+                            MinorGridlineStyle = LineStyle.Dot,
+                            MajorGridlineColor = OxyColors.Gray
+                        });
+
+                        // Add function series
+                        var functionSeries = new LineSeries
+                        {
+                            Title = "f(x)",
+                            StrokeThickness = 2,
+                            Color = OxyColors.Blue
+                        };
+                        functionSeries.Points.AddRange(xValues.Zip(yFunctionValues, (x, y) => new DataPoint(x, y)));
+
+                        // Add derivative series
+                        var derivativeSeries = new LineSeries
+                        {
+                            Title = "f'(x)",
+                            StrokeThickness = 2,
+                            Color = OxyColors.Red,
+                            LineStyle = LineStyle.Dash
+                        };
+                        derivativeSeries.Points.AddRange(xValues.Zip(yDerivativeValues, (x, y) => new DataPoint(x, y)));
+
+                        // Add series to plot model
+                        plotModel.Series.Add(functionSeries);
+                        plotModel.Series.Add(derivativeSeries);
+
+                        // Create a new window to display the plot
+                        var plotView = new PlotView
+                        {
+                            Model = plotModel,
+                            
+                        };
+
+                        var plotWindow = new Window
+                        {
+                            Title = "Function and Derivative Plot",
+                            Content = plotView,
+                            WindowState = WindowState.Maximized,
+                            Width = 800,
+                            Height = 600
+                        };
+
+                        // Show the plot window maximized
+                        plotWindow.ShowDialog();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+
+                }
+                else if (input.StartsWith("∫"))
+                {
+                    try
+                    {
+                        
+
+                        // Try to parse the values to doubles
+                        if (!double.TryParse(xMinText, out double lower) ||
+                            !double.TryParse(xMaxText, out double upper) ||
+                            !double.TryParse(xStepText, out double interval) || interval <= 0)
+                        {
+                            MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
+                            return;
+                        }
+
+                        // Replace ∫ with Integral in the expression
+                        input = input.Replace("∫", "Integral");
+                        input = $"Integral({lower},{upper},{input.Substring(input.IndexOf('(') + 1)}";
+
+                        // Call the F# function to evaluate the area under the curve
+                        var (xValues, yValues) = ArithmeticInterpreter.evaluateNumericalIntegration(input, lower, upper, interval);
+
+                        // Convert F# lists to C# lists
+                        var xList = new List<double>(xValues);
+                        var yList = new List<double>(yValues);
+
+                        
+
+                        // Add axes
+                        plotModel.Axes.Add(new LinearAxis
+                        {
+                            Position = AxisPosition.Bottom,
+                            Title = "X-Axis",
+                            Minimum = lower,
+                            Maximum = upper,
+                            MajorGridlineStyle = LineStyle.Solid,
+                            MinorGridlineStyle = LineStyle.Dot,
+                            MajorGridlineColor = OxyColors.Gray
+                        });
+
+                        plotModel.Axes.Add(new LinearAxis
+                        {
+                            Position = AxisPosition.Left,
+                            Title = "Y-Axis",
+                            Minimum = yValues.Min() - 1,
+                            Maximum = yValues.Max() + 1,
+                            MajorGridlineStyle = LineStyle.Solid,
+                            MinorGridlineStyle = LineStyle.Dot,
+                            MajorGridlineColor = OxyColors.Gray
+                        });
+
+                        // Add an area series for the shaded region
+                        var areaSeries = new AreaSeries
+                        {
+                            Title = "Area Under Curve",
+                            Color = OxyColors.Transparent,
+                            Fill = OxyColors.LightBlue,
+                            StrokeThickness = 1
+                        };
+
+                        // Add points to the area series
+                        for (int i = 0; i < xList.Count; i++)
+                        {
+                            areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
+                            areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        // Baseline (y = 0)
+                        }
+
+                        // Add the area series to the plot model
+                        plotModel.Series.Add(areaSeries);
+
+                        // Add a line series for the function curve
+                        var lineSeries = new LineSeries
+                        {
+                            Title = "f(x)",
+                            StrokeThickness = 2,
+                            Color = OxyColors.Red
+                        };
+                        lineSeries.Points.AddRange(xValues.Zip(yValues, (x, y) => new DataPoint(x, y)));
+
+                        // Add the line series to the plot model
+                        plotModel.Series.Add(lineSeries);
+
+                       
+
+                        // Open the PlotGraph window and pass the x and y values
+                        PlotGraph plotWindow = new PlotGraph(xList, yList, true);
+                        plotWindow.WindowState = System.Windows.WindowState.Maximized;
+                        plotWindow.ShowDialog();
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    }
+                }
+                else
+                {
+
+                    // Try to parse the values to doubles
+                    if (!double.TryParse(xMinText, out double lower) ||
+                        !double.TryParse(xMaxText, out double upper) ||
+                        !double.TryParse(xStepText, out double interval) || interval <= 0)
+                    {
+                        MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
+                        return;
+                    }
+
+                    // Generate the loop expression in the format: "for x = startX to endX step stepX"
+                    String loopExpression = $"for x = {xMinText} to {xMaxText} step {xStepText}";
+
+                    // Call F# function to evaluate the for-loop expression
+                    var (xValues, yValues) = ArithmeticInterpreter.evaluatePolynomialForLoop(loopExpression, input);
+
+                    // Convert F# lists to C# lists
+                    var xList = new List<double>(xValues);
+                    var yList = new List<double>(yValues);
+
+                    // Pass the x and y values to the PlotGraph window
+                    PlotGraph plotWindow = new PlotGraph(xList, yList, false);
+
+                    // Set the window state to Maximized
+                    plotWindow.WindowState = System.Windows.WindowState.Maximized;
+                    plotWindow.ShowDialog();
+                }
+
+               
             }
-
-            // Generate the loop expression in the format: "for x = startX to endX step stepX"
-            loopExpression = $"for x = {xMinText} to {xMaxText} step {xStepText}";
-
-            // Call F# function to evaluate the for-loop expression
-            var (xValues, yValues) = ArithmeticInterpreter.evaluatePolynomialForLoop(loopExpression, input);
-
-            // Convert F# lists to C# lists
-            var xList = new List<double>(xValues);
-            var yList = new List<double>(yValues);
-
-            // Pass the x and y values to the PlotGraph window
-            PlotGraph plotWindow = new PlotGraph(xList, yList, false);
-
-            // Set the window state to Maximized
-            plotWindow.WindowState = System.Windows.WindowState.Maximized;
-            plotWindow.ShowDialog();
-
-
+            catch (Exception ex)
+            {
+                MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+            }
         }
 
         private void DefiniteIntegral_Click(object sender, RoutedEventArgs e)
         {
             try
             {
-                // Prompt for the for-loop expression
-                //MessageBox.Show("Enter the for-loop expression:", "For Loop Required", MessageBoxButton.OK, MessageBoxImage.Information);
-
                 // Get the values from the TextBoxes
                 string xMinText = XMinTextBox.Text;
                 string xMaxText = XMaxTextBox.Text;
@@ -510,7 +775,7 @@ namespace CSharpInterpreterGUI
                 // Try to parse the values to doubles
                 if (!double.TryParse(xMinText, out double lower) ||
                     !double.TryParse(xMaxText, out double upper) ||
-                    !double.TryParse(xStepText, out double interval))
+                    !double.TryParse(xStepText, out double interval) || interval <= 0)
                 {
                     MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
                     return;
@@ -527,10 +792,65 @@ namespace CSharpInterpreterGUI
                 var xList = new List<double>(xValues);
                 var yList = new List<double>(yValues);
 
-                // Open the PlotGraph window and pass the x and y values
-                PlotGraph plotWindow = new PlotGraph(xList, yList, true);
-                plotWindow.WindowState = System.Windows.WindowState.Maximized;
-                plotWindow.ShowDialog();
+                // Create the plot model
+                plotModel = new PlotModel { Title = "Definite Integral Plot" };
+
+                // Add axes
+                plotModel.Axes.Add(new LinearAxis
+                {
+                    Position = AxisPosition.Bottom,
+                    Title = "X-Axis",
+                    Minimum = lower,
+                    Maximum = upper,
+                    MajorGridlineStyle = LineStyle.Solid,
+                    MinorGridlineStyle = LineStyle.Dot,
+                    MajorGridlineColor = OxyColors.Gray
+                });
+
+                plotModel.Axes.Add(new LinearAxis
+                {
+                    Position = AxisPosition.Left,
+                    Title = "Y-Axis",
+                    Minimum = yValues.Min() - 1,
+                    Maximum = yValues.Max() + 1,
+                    MajorGridlineStyle = LineStyle.Solid,
+                    MinorGridlineStyle = LineStyle.Dot,
+                    MajorGridlineColor = OxyColors.Gray
+                });
+
+                // Add an area series for the shaded region
+                var areaSeries = new AreaSeries
+                {
+                    Title = "Area Under Curve",
+                    Color = OxyColors.Transparent,
+                    Fill = OxyColors.LightBlue,
+                    StrokeThickness = 1
+                };
+
+                // Add points to the area series
+                for (int i = 0; i < xList.Count; i++)
+                {
+                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
+                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        // Baseline (y = 0)
+                }
+
+                // Add the area series to the plot model
+                plotModel.Series.Add(areaSeries);
+
+                // Add a line series for the function curve
+                var lineSeries = new LineSeries
+                {
+                    Title = "f(x)",
+                    StrokeThickness = 2,
+                    Color = OxyColors.Red
+                };
+                lineSeries.Points.AddRange(xValues.Zip(yValues, (x, y) => new DataPoint(x, y)));
+
+                // Add the line series to the plot model
+                plotModel.Series.Add(lineSeries);
+
+                // Set the plot model to the PlotView control
+                plotView.Model = plotModel;
             }
             catch (Exception ex)
             {
@@ -541,48 +861,151 @@ namespace CSharpInterpreterGUI
 
 
 
+
         private void Differential_Click(object sender, RoutedEventArgs e)
         {
-            // Get the input expression from the displayTextBox
-            string input = displayTextBox.Text.TrimStart('>', '>').Trim();
-
-            // Check if the input starts with "d/dx"
-            if (!input.StartsWith("d/dx"))
-            {
-                MessageBox.Show("The input must start with 'd/dx' to calculate the derivative.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
-                return;
-            }
-
-            // Extract the expression for differentiation (e.g., "x^2 + 3x")
-            string derivativeInput = input.Substring(5).Trim(); // Skip "d/dx"
-
-            // Define sample x values
-            var xValues = new List<double> { -2, -1, 0, 1, 2 };
-
             try
             {
-                // Evaluate y values for the derivative at the sample x values
-                var yValues = xValues
-    .Select(x =>
-    {
-        // Directly assign the double result from evaluateDerivativeAt
-        double evaluatedDerivative = ArithmeticInterpreter.evaluateDerivativeAt(input, x);
-        return evaluatedDerivative; // No need for double.Parse
-    })
-    .ToList();
+                // Get the expression from the input box
+                string input = displayTextBox.Text.TrimStart('>', '>').Trim();
 
-                // Define a derivative function for tangent calculations
-                Func<double, double> derivative = x => ArithmeticInterpreter.evaluateDerivativeAt(input, x);
+                // Validate the input
+                if (string.IsNullOrEmpty(input) || !input.StartsWith("d/dx"))
+                {
+                    MessageBox.Show("The input must start with 'd/dx' to calculate the derivative.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
+                    return;
+                }
 
-                // Plot the graph with tangent lines
-                PlotGraph plotWindow = new PlotGraph(xValues, yValues, false, derivative);
-                plotWindow.ShowDialog();
+                // Extract the function from the input by removing 'd/dx(' and the closing ')'
+                string function = input.Replace("d/dx(", "").TrimEnd(')');
+                Debug.WriteLine($"Extracted Function: {function}");
+
+                // Define the range and step size for x values
+                // Get the values from the TextBoxes
+                string xMinText = XMinTextBox.Text;
+                string xMaxText = XMaxTextBox.Text;
+                string xStepText = XStepTextBox.Text;
+                double xMin = -5.0, xMax = 5.0, step = 0.5;
+
+                // Try to parse the input text values
+                if (!double.TryParse(xMinText, out xMin))
+                {
+                    xMin = -5.0; // Default value if parsing fails
+                }
+
+                if (!double.TryParse(xMaxText, out xMax))
+                {
+                    xMax = 5.0; // Default value if parsing fails
+                }
+
+                if (!double.TryParse(xStepText, out step) || step <= 0)
+                {
+                    step = 0.5; // Default value if parsing fails or invalid step
+                }
+                var xValues = Enumerable.Range((int)(xMin / step), (int)((xMax - xMin) / step) + 1)
+                                        .Select(i => i * step)
+                                        .ToList();
+
+                // Evaluate the function at each x value
+                var yFunctionValues = xValues
+                    .Select(x =>
+                    {
+                        try
+                        {
+                            // Replace 'x' in the function with the current x value
+                            string functionWithX = function.Replace("x", x.ToString("G"));
+
+                            // Evaluate the function using F#
+                            string evaluatedResult = ArithmeticInterpreter.evaluateExpression(functionWithX);
+
+                            // Parse the result into a double
+                            return double.Parse(evaluatedResult);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error evaluating function at x={x}: {ex.Message}");
+                            throw;
+                        }
+                    })
+                    .ToList();
+
+                // Evaluate the derivative at each x value
+                var yDerivativeValues = xValues
+                    .Select(x =>
+                    {
+                        try
+                        {
+                            // Evaluate the derivative using F#
+                            return ArithmeticInterpreter.evaluateDerivativeAt(input, x);
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine($"Error evaluating derivative at x={x}: {ex.Message}");
+                            throw;
+                        }
+                    })
+                    .ToList();
+
+                // Create the plot model
+                plotModel = new PlotModel { Title = "Function and Derivative Plot" };
+
+                // Add axes
+                plotModel.Axes.Add(new LinearAxis
+                {
+                    Position = AxisPosition.Bottom,
+                    Title = "X-Axis",
+                    Minimum = xMin,
+                    Maximum = xMax,
+                    MajorGridlineStyle = LineStyle.Solid,
+                    MinorGridlineStyle = LineStyle.Dot,
+                    MajorGridlineColor = OxyColors.Gray
+                });
+
+                plotModel.Axes.Add(new LinearAxis
+                {
+                    Position = AxisPosition.Left,
+                    Title = "Y-Axis",
+                    Minimum = Math.Min(yFunctionValues.Min(), yDerivativeValues.Min()) - 1,
+                    Maximum = Math.Max(yFunctionValues.Max(), yDerivativeValues.Max()) + 1,
+                    MajorGridlineStyle = LineStyle.Solid,
+                    MinorGridlineStyle = LineStyle.Dot,
+                    MajorGridlineColor = OxyColors.Gray
+                });
+
+                // Add function series
+                var functionSeries = new LineSeries
+                {
+                    Title = "f(x)",
+                    StrokeThickness = 2,
+                    Color = OxyColors.Blue
+                };
+                functionSeries.Points.AddRange(xValues.Zip(yFunctionValues, (x, y) => new DataPoint(x, y)));
+
+                // Add derivative series
+                var derivativeSeries = new LineSeries
+                {
+                    Title = "f'(x)",
+                    StrokeThickness = 2,
+                    Color = OxyColors.Red,
+                    LineStyle = LineStyle.Dash
+                };
+                derivativeSeries.Points.AddRange(xValues.Zip(yDerivativeValues, (x, y) => new DataPoint(x, y)));
+
+                // Add series to plot model
+                plotModel.Series.Add(functionSeries);
+                plotModel.Series.Add(derivativeSeries);
+
+                // Set the plot model to the PlotView control
+                plotView.Model = plotModel;
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"An error occurred: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
+
+
+
 
 
 
