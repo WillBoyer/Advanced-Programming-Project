@@ -102,10 +102,12 @@
             <Button Content="New" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Open" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Save" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" Click="Button_Click"/>
-            <Button Content="Diff" Width="60" Margin="0,0,10,0" Style="{StaticResource CalcButton}" />
+            <Button Content="Help" Width="60" Margin="0,0,10,0" Background="LightBlue" Style="{StaticResource CalcButton}" Click="HelpButton_Click"/>
             <Button Content="Min" Width="60" Margin="0,0,10,0" Background="LightGreen" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Max" Width="60" Margin="0,0,10,0" Background="Yellow" Style="{StaticResource CalcButton}" Click="Button_Click"/>
-            <Button Content="Close" Width="60" Margin="0,0,10,0" Background="Red" Style="{StaticResource CalcButton}" Click="Button_Click"/>
+            <Button Content="Tanspiler" Width="60" Margin="0,0,10,0" Background="Red" Style="{StaticResource CalcButton}" Click="OpenTranspilerWindow_Click"/>
+            <!--<Button Content="Open Transpiler" Width="60" Margin="0,0,10,0" Background="Purple" Style="{StaticResource CalcButton}" Click="OpenTranspilerWindow_Click"/>-->
+           
         </StackPanel>
 
 
@@ -232,6 +234,8 @@
                 </Border>
             </StackPanel>
 
+           
+
             <!-- Graph Section -->
             <StackPanel Grid.Column="2" Margin="10,22,0,-22">
                 <TextBlock Text="Graphs" FontWeight="Bold" Margin="0,0,0,10"/>
@@ -282,8 +286,7 @@
                                       HorizontalAlignment="Left" VerticalAlignment="Top"
                                       Padding="5" Background="#F0F0F0" BorderBrush="#BBBBBB" BorderThickness="1" Margin="-1,-10,0,0">
                                 <ComboBoxItem Content="Select Plot Type" IsSelected="True"/>
-                                <ComboBoxItem Content="Plot Graph" FontWeight="Bold"/>
-                                <ComboBoxItem Content="Linear Plot" FontWeight="Bold"/>
+                                <ComboBoxItem Content="Linear Graph" FontWeight="Bold"/>
                                 <ComboBoxItem Content="Spline Plot" FontWeight="Bold"/>
                             </ComboBox>
                         </Grid>

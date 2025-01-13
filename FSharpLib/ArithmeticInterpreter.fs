@@ -2,6 +2,12 @@
 
 open System
 open System.Text.RegularExpressions
+open System.IO
+open System.Diagnostics
+
+
+open MathNet.Numerics.Interpolation;
+
 
 
 
@@ -923,6 +929,75 @@ let evaluatePolynomialForLoop (input: string) (expression: string) : float list 
         failwith "Input is not a polynomial"
 
 
+
+let splineInterpolation (xValues: float list) (yValues: float list) (queryX: float list) =
+    let spline = CubicSpline.InterpolateNatural(xValues |> List.toArray, yValues |> List.toArray)
+    queryX |> List.map spline.Interpolate
+
+let evaluateExpressionForCompiler (input: string) : string =
+    // Tokenize the input string
+    let tokenList = lexer input
+    System.Diagnostics.Debug.WriteLine("******Token List: " + string tokenList)
+    
+    // Parse and evaluate the token list
+    let (remaining, result) = parseExpr tokenList
+    
+    // Format the result
+    let formattedResult =
+        if initialState.IsFloatDetected then
+            result.ToString()
+        else
+            result.ToString()
+    
+    System.Diagnostics.Debug.WriteLine("Final Result: " + formattedResult)
+    formattedResult
+
+// Generate Python Code
+let rec translateToPython (expr: Expr): string =
+    match expr with
+    | Const c -> c.ToString()
+    | Var v -> v
+    | AddCalculus (e1, e2) -> sprintf "(%s + %s)" (translateToPython e1) (translateToPython e2)
+    | SubCalculus (e1, e2) -> sprintf "(%s - %s)" (translateToPython e1) (translateToPython e2)
+    | MulCalculus (e1, e2) -> sprintf "(%s * %s)" (translateToPython e1) (translateToPython e2)
+    | DivCalculus (e1, e2) -> sprintf "(%s / %s)" (translateToPython e1) (translateToPython e2)
+    | PowCalculus (e, Const n) -> sprintf "(%s ** %s)" (translateToPython e) (translateToPython (Const n))
+    | SinCalculus e -> sprintf "math.sin(%s)" (translateToPython e)
+    | CosCalculus e -> sprintf "math.cos(%s)" (translateToPython e)
+    | LogCalculus e -> sprintf "math.log(%s)" (translateToPython e)
+    | _ -> failwith "Unsupported expression for transpilation."
+
+let generatePythonCode (expr: Expr): string =
+    let translatedExpr = translateToPython expr
+    sprintf """
+        import math
+
+        def user_function(x):
+            return %s
+
+        if __name__ == "__main__":
+            print(user_function(2))  # Example test
+        """ translatedExpr
+
+// Compile Python Code
+let compilePythonCode (pythonCode: string) (outputPath: string) =
+    File.WriteAllText(outputPath, pythonCode)
+    let process = Process.Start("python", sprintf "-m py_compile %s" outputPath)
+    process.WaitForExit()
+    if process.ExitCode <> 0 then
+        failwith "Python compilation failed."
+
+// Run Python Code
+let runPythonCode (scriptPath: string) =
+    let process = new Process()
+    process.StartInfo.FileName <- "python"
+    process.StartInfo.Arguments <- scriptPath
+    process.StartInfo.UseShellExecute <- false
+    process.StartInfo.RedirectStandardOutput <- true
+    process.Start()
+    let output = process.StandardOutput.ReadToEnd()
+    process.WaitForExit()
+    output
 
 
 let helpInfo () =

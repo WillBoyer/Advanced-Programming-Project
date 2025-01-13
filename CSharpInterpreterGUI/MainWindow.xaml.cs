@@ -1,4 +1,5 @@
-﻿using OxyPlot;
+﻿using Microsoft.FSharp.Collections;
+using OxyPlot;
 using OxyPlot.Axes;
 using OxyPlot.Series;
 using OxyPlot.Wpf;
@@ -11,6 +12,8 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using static ArithmeticInterpreter;
 using static Microsoft.FSharp.Core.ByRefKinds;
+using System.IO;
+using System.Diagnostics;
 
 namespace CSharpInterpreterGUI
 {
@@ -284,22 +287,22 @@ namespace CSharpInterpreterGUI
         private void PlotLinear()
         {
 
-            MessageBox.Show("Plot Linear Interpolation button clicked!");
+            MessageBox.Show("Please enter values for X Min, X Max, and X Step");
         }
 
         private void PlotSpline()
         {
 
-            MessageBox.Show("Plot Linear Interpolation button clicked!");
+            MessageBox.Show("Please enter values for X Min, X Max, and X Step\");\r\n        }");
         }
 
 
-        //// Handle Help button click
-        //private void HelpButton_Click(object sender, RoutedEventArgs e)
-        //{
-        //    string helpMessage = ArithmeticInterpreter.helpInfo();
-        //    MessageBox.Show(helpMessage, "Help", MessageBoxButton.OK, MessageBoxImage.Information);
-        //}
+        // Handle Help button click
+        private void HelpButton_Click(object sender, RoutedEventArgs e)
+        {
+            string helpMessage = ArithmeticInterpreter.helpInfo();
+            MessageBox.Show(helpMessage, "Help", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
 
         // Event handler for the ComboBox selection change
         private void PlotTypeComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -335,121 +338,122 @@ namespace CSharpInterpreterGUI
 
         private async void UpdateButton_Click(object sender, RoutedEventArgs e)
         {
-            // Get the values from the TextBoxes
+            // Get user input
             string xMinText = XMinTextBox.Text;
             string xMaxText = XMaxTextBox.Text;
             string xStepText = XStepTextBox.Text;
-            string loopExpression;
             string input = displayTextBox.Text.TrimStart('>', '>').Trim();
 
-            // Try to parse the values to doubles
-            double xMin, xMax, xStep;
-
-            bool isXMinValid = double.TryParse(xMinText, out xMin);
-            bool isXMaxValid = double.TryParse(xMaxText, out xMax);
-            bool isXStepValid = double.TryParse(xStepText, out xStep);
-
-            // Check if all inputs are valid
-            if (!isXMinValid || !isXMaxValid || !isXStepValid)
+            // Validate and parse input values
+            if (!double.TryParse(xMinText, out double xMin) ||
+                !double.TryParse(xMaxText, out double xMax) ||
+                !double.TryParse(xStepText, out double xStep) ||
+                xStep <= 0 || xMin >= xMax)
             {
-                MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
+                MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
-            // Generate the loop expression in the format: "for x = startX to endX step stepX"
-            loopExpression = $"for x = {xMinText} to {xMaxText} step {xStepText}";
+            // Generate xValues based on user input
+            var xValues = Enumerable.Range(0, (int)((xMax - xMin) / xStep) + 1)
+                                     .Select(i => xMin + i * xStep)
+                                     .ToList();
 
-            // Call F# function to evaluate the for-loop expression
-            var (xValues, yValues) = ArithmeticInterpreter.evaluatePolynomialForLoop(loopExpression, input);
-
-            // Convert F# lists to C# lists
-            var xList = new List<double>(xValues);
-            var yList = new List<double>(yValues);
-
-            // Create the plot model (using OxyPlot as an example)
-            plotModel = new OxyPlot.PlotModel { Title = "Graph" };
-
-            // Define the X and Y axes with gridlines and styling
-            var xAxis = new OxyPlot.Axes.LinearAxis
+            // Evaluate yValues for the expression y = sin(x)
+            var yValues = xValues.Select(x =>
             {
-                Position = OxyPlot.Axes.AxisPosition.Bottom,
+                try
+                {
+                    string expression = input.Replace("x", x.ToString("G"));
+                    return double.Parse(ArithmeticInterpreter.evaluateExpression(expression));
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error evaluating expression at x = {x}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    throw;
+                }
+            }).ToList();
+
+            // Check the selected plot type
+            string selectedPlotType = (PlotTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+            if (string.IsNullOrEmpty(selectedPlotType) || selectedPlotType == "Select Plot Type")
+            {
+                MessageBox.Show("Please select a valid plot type.", "Invalid Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return;
+            }
+
+            // Generate queryX for smoother spline interpolation
+            var queryX = Enumerable.Range(0, (int)((xMax - xMin) / (xStep / 10)) + 1)
+                                    .Select(i => xMin + i * (xStep / 10))
+                                    .ToList();
+
+            List<double> interpolatedYValues = new List<double>();
+
+            if (selectedPlotType == "Spline Plot")
+            {
+                // Convert C# List<double> to F# FSharpList<double>
+                FSharpList<double> fsharpXValues = ListModule.OfSeq(xValues);
+                FSharpList<double> fsharpYValues = ListModule.OfSeq(yValues);
+                FSharpList<double> fsharpQueryX = ListModule.OfSeq(queryX);
+
+                // Perform spline interpolation
+                var fsharpInterpolatedY = ArithmeticInterpreter.splineInterpolation(fsharpXValues, fsharpYValues, fsharpQueryX);
+
+                // Convert FSharpList<double> back to List<double>
+                interpolatedYValues = fsharpInterpolatedY.ToList();
+            }
+            else if (selectedPlotType == "Linear Graph")
+            {
+                // Use original yValues for linear plot
+                interpolatedYValues = yValues;
+                queryX = xValues;
+            }
+
+            // Create and configure the plot model
+            plotModel = new PlotModel
+            {
+                Title = selectedPlotType == "Spline Plot" ? "Spline Interpolation" : "Linear Interpolation"
+            };
+
+            plotModel.Axes.Add(new LinearAxis
+            {
+                Position = AxisPosition.Bottom,
                 Title = "X-Axis",
-                Minimum = xList.Min() - 1, 
-                Maximum = xList.Max() + 1, 
-                MajorGridlineStyle = OxyPlot.LineStyle.Solid,
-                MinorGridlineStyle = OxyPlot.LineStyle.Dot,
-                MajorGridlineColor = OxyPlot.OxyColors.Gray,
-                AxislineStyle = OxyPlot.LineStyle.Solid,
-                AxislineThickness = 2
-            };
+                Minimum = xMin - 1,
+                Maximum = xMax + 1,
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot,
+                MajorGridlineColor = OxyColors.Gray
+            });
 
-            var yAxis = new OxyPlot.Axes.LinearAxis
+            plotModel.Axes.Add(new LinearAxis
             {
-                Position = OxyPlot.Axes.AxisPosition.Left,
+                Position = AxisPosition.Left,
                 Title = "Y-Axis",
-                Minimum = yList.Min() - 1, 
-                Maximum = yList.Max() + 1, 
-                MajorGridlineStyle = OxyPlot.LineStyle.Solid,
-                MinorGridlineStyle = OxyPlot.LineStyle.Dot,
-                MajorGridlineColor = OxyPlot.OxyColors.Gray,
-                AxislineStyle = OxyPlot.LineStyle.Solid,
-                AxislineThickness = 2
-            };
+                Minimum = interpolatedYValues.Min() - 1,
+                Maximum = interpolatedYValues.Max() + 1,
+                MajorGridlineStyle = LineStyle.Solid,
+                MinorGridlineStyle = LineStyle.Dot,
+                MajorGridlineColor = OxyColors.Gray
+            });
 
-            // Add axes to the model
-            plotModel.Axes.Add(xAxis);
-            plotModel.Axes.Add(yAxis);
-
-            // Create a line series and add the data points with markers
-            var series = new OxyPlot.Series.LineSeries
+            var series = new LineSeries
             {
-                Title = "Polynomial",
-                ItemsSource = xList.Zip(yList, (x, y) => new OxyPlot.DataPoint(x, y)),
-                DataFieldX = "X",
-                DataFieldY = "Y",
-                MarkerType = OxyPlot.MarkerType.None, // Disable markers (dots)
-                StrokeThickness = 2,                  // Adjust the line thickness if needed
-                Color = OxyPlot.OxyColors.Red         // Line color
+                Title = selectedPlotType,
+                ItemsSource = queryX.Zip(interpolatedYValues, (x, y) => new DataPoint(x, y)),
+                StrokeThickness = 2,
+                Color = selectedPlotType == "Spline Plot" ? OxyColors.Green : OxyColors.Blue
             };
 
-            // Add the series to the plot model
             plotModel.Series.Add(series);
 
-            // Add bold center lines (Zero X and Zero Y)
-            var zeroLineX = new OxyPlot.Series.LineSeries
-            {
-                Title = "Zero X",
-                Color = OxyPlot.OxyColors.Black,
-                StrokeThickness = 3, 
-                LineStyle = OxyPlot.LineStyle.Solid
-            };
-            zeroLineX.Points.Add(new OxyPlot.DataPoint(xAxis.Minimum, 0)); 
-            zeroLineX.Points.Add(new OxyPlot.DataPoint(xAxis.Maximum, 0)); 
-
-            var zeroLineY = new OxyPlot.Series.LineSeries
-            {
-                Title = "Zero Y",
-                Color = OxyPlot.OxyColors.Black,
-                StrokeThickness = 3, 
-                LineStyle = OxyPlot.LineStyle.Solid
-            };
-            zeroLineY.Points.Add(new OxyPlot.DataPoint(0, yAxis.Minimum)); 
-            zeroLineY.Points.Add(new OxyPlot.DataPoint(0, yAxis.Maximum)); 
-
-            // Add the zero lines to the plot model
-            plotModel.Series.Add(zeroLineX);
-            plotModel.Series.Add(zeroLineY);
-
-            // Set the plot model to the PlotView control to display it
+            // Update the PlotView
             plotView.Model = plotModel;
 
-            //resultTextBox.Text = "Graph plotted successfully.";
-
-            // After the plot is done, reset ComboBox selection to index 0
-            await Dispatcher.InvokeAsync(() =>
-            {
-                ResetPlotTypeComboBox(0);
-            });
+            //await Dispatcher.InvokeAsync(() =>
+            //{
+            //    ResetPlotTypeComboBox(0);
+            //});
         }
 
         private void ExpandButton_Click(object sender, RoutedEventArgs e)
@@ -496,7 +500,7 @@ namespace CSharpInterpreterGUI
                 {
                     try
                     {
-                        
+
 
                         // Validate the input
                         if (string.IsNullOrEmpty(input) || !input.StartsWith("d/dx"))
@@ -509,9 +513,9 @@ namespace CSharpInterpreterGUI
                         string function = input.Replace("d/dx(", "").TrimEnd(')');
                         Debug.WriteLine($"Extracted Function: {function}");
 
-                        
 
-                       
+
+
                         var xValues = Enumerable.Range((int)(xMin / step), (int)((xMax - xMin) / step) + 1)
                                                 .Select(i => i * step)
                                                 .ToList();
@@ -609,7 +613,7 @@ namespace CSharpInterpreterGUI
                         var plotView = new PlotView
                         {
                             Model = plotModel,
-                            
+
                         };
 
                         var plotWindow = new Window
@@ -634,7 +638,7 @@ namespace CSharpInterpreterGUI
                 {
                     try
                     {
-                        
+
 
                         // Try to parse the values to doubles
                         if (!double.TryParse(xMinText, out double lower) ||
@@ -656,7 +660,7 @@ namespace CSharpInterpreterGUI
                         var xList = new List<double>(xValues);
                         var yList = new List<double>(yValues);
 
-                        
+
 
                         // Add axes
                         plotModel.Axes.Add(new LinearAxis
@@ -712,7 +716,7 @@ namespace CSharpInterpreterGUI
                         // Add the line series to the plot model
                         plotModel.Series.Add(lineSeries);
 
-                       
+
 
                         // Open the PlotGraph window and pass the x and y values
                         PlotGraph plotWindow = new PlotGraph(xList, yList, true);
@@ -727,34 +731,134 @@ namespace CSharpInterpreterGUI
                 else
                 {
 
-                    // Try to parse the values to doubles
                     if (!double.TryParse(xMinText, out double lower) ||
                         !double.TryParse(xMaxText, out double upper) ||
-                        !double.TryParse(xStepText, out double interval) || interval <= 0)
+                        !double.TryParse(xStepText, out double xStep) ||
+                        xStep <= 0 || xMin >= xMax)
                     {
-                        MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
+                        MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.", "Invalid Input", MessageBoxButton.OK, MessageBoxImage.Error);
                         return;
                     }
 
-                    // Generate the loop expression in the format: "for x = startX to endX step stepX"
-                    String loopExpression = $"for x = {xMinText} to {xMaxText} step {xStepText}";
+                    // Generate xValues based on user input
+                    var xValues = Enumerable.Range(0, (int)((xMax - xMin) / xStep) + 1)
+                                             .Select(i => xMin + i * xStep)
+                                             .ToList();
 
-                    // Call F# function to evaluate the for-loop expression
-                    var (xValues, yValues) = ArithmeticInterpreter.evaluatePolynomialForLoop(loopExpression, input);
+                    // Evaluate yValues for the expression y = sin(x)
+                    var yValues = xValues.Select(x =>
+                    {
+                        try
+                        {
+                            string expression = input.Replace("x", x.ToString("G"));
+                            return double.Parse(ArithmeticInterpreter.evaluateExpression(expression));
+                        }
+                        catch (Exception ex)
+                        {
+                            MessageBox.Show($"Error evaluating expression at x = {x}: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                            throw;
+                        }
+                    }).ToList();
 
-                    // Convert F# lists to C# lists
-                    var xList = new List<double>(xValues);
-                    var yList = new List<double>(yValues);
+                    // Check the selected plot type
+                    string selectedPlotType = (PlotTypeComboBox.SelectedItem as ComboBoxItem)?.Content.ToString();
+                    if (string.IsNullOrEmpty(selectedPlotType) || selectedPlotType == "Select Plot Type")
+                    {
+                        MessageBox.Show("Please select a valid plot type.", "Invalid Selection", MessageBoxButton.OK, MessageBoxImage.Warning);
+                        return;
+                    }
 
-                    // Pass the x and y values to the PlotGraph window
-                    PlotGraph plotWindow = new PlotGraph(xList, yList, false);
+                    // Generate queryX for smoother spline interpolation
+                    var queryX = Enumerable.Range(0, (int)((xMax - xMin) / (xStep / 10)) + 1)
+                                            .Select(i => xMin + i * (xStep / 10))
+                                            .ToList();
 
-                    // Set the window state to Maximized
-                    plotWindow.WindowState = System.Windows.WindowState.Maximized;
+                    List<double> interpolatedYValues = new List<double>();
+
+                    if (selectedPlotType == "Spline Plot")
+                    {
+                        // Convert C# List<double> to F# FSharpList<double>
+                        FSharpList<double> fsharpXValues = ListModule.OfSeq(xValues);
+                        FSharpList<double> fsharpYValues = ListModule.OfSeq(yValues);
+                        FSharpList<double> fsharpQueryX = ListModule.OfSeq(queryX);
+
+                        // Perform spline interpolation
+                        var fsharpInterpolatedY = ArithmeticInterpreter.splineInterpolation(fsharpXValues, fsharpYValues, fsharpQueryX);
+
+                        // Convert FSharpList<double> back to List<double>
+                        interpolatedYValues = fsharpInterpolatedY.ToList();
+                    }
+                    else if (selectedPlotType == "Linear Graph")
+                    {
+                        // Use original yValues for linear plot
+                        interpolatedYValues = yValues;
+                        queryX = xValues;
+                    }
+
+                    // Create and configure the plot model
+                    plotModel = new PlotModel
+                    {
+                        Title = selectedPlotType == "Spline Plot" ? "Spline Interpolation" : "Linear Interpolation"
+                    };
+
+                    plotModel.Axes.Add(new LinearAxis
+                    {
+                        Position = AxisPosition.Bottom,
+                        Title = "X-Axis",
+                        Minimum = xMin - 1,
+                        Maximum = xMax + 1,
+                        MajorGridlineStyle = LineStyle.Solid,
+                        MinorGridlineStyle = LineStyle.Dot,
+                        MajorGridlineColor = OxyColors.Gray
+                    });
+
+                    plotModel.Axes.Add(new LinearAxis
+                    {
+                        Position = AxisPosition.Left,
+                        Title = "Y-Axis",
+                        Minimum = interpolatedYValues.Min() - 1,
+                        Maximum = interpolatedYValues.Max() + 1,
+                        MajorGridlineStyle = LineStyle.Solid,
+                        MinorGridlineStyle = LineStyle.Dot,
+                        MajorGridlineColor = OxyColors.Gray
+                    });
+
+                    var series = new LineSeries
+                    {
+                        Title = selectedPlotType,
+                        ItemsSource = queryX.Zip(interpolatedYValues, (x, y) => new DataPoint(x, y)),
+                        StrokeThickness = 2,
+                        Color = selectedPlotType == "Spline Plot" ? OxyColors.Green : OxyColors.Blue
+                    };
+
+                    plotModel.Series.Add(series);
+
+                    // Create a new window for displaying the plot
+                    var plotView = new OxyPlot.Wpf.PlotView
+                    {
+                        Model = plotModel,
+                        Margin = new Thickness(10)
+                    };
+
+                    var plotWindow = new Window
+                    {
+                        Title = "Graph Plot",
+                        Content = plotView,
+                        WindowState = WindowState.Maximized,
+                        Width = 800,
+                        Height = 600
+                    };
+
+                    // Show the window
                     plotWindow.ShowDialog();
-                }
 
+                    
+
+
+                }
                
+
+
             }
             catch (Exception ex)
             {
@@ -1009,8 +1113,14 @@ namespace CSharpInterpreterGUI
 
 
 
+        public void OpenTranspilerWindow_Click(object sender, RoutedEventArgs e)
+        {
+            // Pass the content of displayTextBox to the TranspilerWindow
+            string interpreterCode = displayTextBox.Text;
 
-
+            TranspilerWindow transpilerWindow = new TranspilerWindow(interpreterCode);
+            transpilerWindow.Show();
+        }
 
 
 

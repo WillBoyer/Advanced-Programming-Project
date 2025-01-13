@@ -16,6 +16,9 @@
     <Compile Update="IntegralInputDialog.xaml.cs">
       <SubType>Code</SubType>
     </Compile>
+    <Compile Update="TranspilerWindow.xaml.cs">
+      <SubType>Code</SubType>
+    </Compile>
   </ItemGroup>
   <ItemGroup>
     <Page Update="MainWindow.xaml">
@@ -28,6 +31,9 @@
       <SubType>Designer</SubType>
     </Page>
     <Page Update="IntegralInputDialog.xaml">
+      <SubType>Designer</SubType>
+    </Page>
+    <Page Update="TranspilerWindow.xaml">
       <SubType>Designer</SubType>
     </Page>
   </ItemGroup>
