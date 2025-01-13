@@ -155,7 +155,7 @@ let derivative = differentiate expr "x"
 let simplifiedDerivative = simplify derivative
 let result = exprToString simplifiedDerivative
 
-System.Diagnostics.Debug.WriteLine("Derivative: " + result)
+//System.Diagnostics.Debug.WriteLine("Derivative: " + result)
 
 let trapezoidalRule (f: float -> float) (a: float) (b: float) (n: int) =
     let h = (b - a) / float n
@@ -223,34 +223,16 @@ let rec evaluate expr (var: string) (value: float) =
 // Example: Integral of x^2 from 0 to 1
 let exampleExpr = PowCalculus (Var "x", Const 2.0)
 //let integralExpr = Integral (exampleExpr, "x", 0.0, 1.0)
-//let integralResult = evaluate integralExpr "x" 0.0 // The variable value is unused for integration
+//let integralResult = evaluate integralExpr "x" 0.0
 System.Diagnostics.Debug.WriteLine("Integral Result: " + exampleExpr.ToString())
 
-//let trapezoidalRule f a b n =
-//    // Step size
-//    let h = (b - a) / float n
-//    // Compute the sum of the first and last terms
-//    let mutable result = (f a + f b) / 2.0
-//    // Sum the values at intermediate points
-//    for i in 1 .. (n - 1) do
-//        let x = a + float i * h
-//        result <- result + f x
-//    // Multiply by the step size
-//    result * h
-
-    // Function to integrate
-//let f x = x^3.0 + x^2.0 + 2.0 * x + 3.0
 
 // Limits and intervals
 let a = 0.0
 let b = 2.0
 let n = 4
 
-// Compute definite integral
-//let result1 = trapezoidalRule f a b n
 
-// Print the result
-//System.Diagnostics.Debug.WriteLine("Definite Integral of f(x) = x^2" + result1.ToString())
 
 
 
@@ -678,11 +660,9 @@ let evaluateCalculus (input: string) : string =
 
     let tokenList = lexer input
     let modifiedTokenList = removeFirstSecondAndLast tokenList
-    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string modifiedTokenList)
 
     // Call the parseExpr function and assign the result to a variable
     let (_, parsedExpr) = parseExpr modifiedTokenList
-    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string parsedExpr)
 
     let derivative = differentiate parsedExpr "x"
     let simplifiedDerivative = simplify derivative
@@ -691,7 +671,7 @@ let evaluateCalculus (input: string) : string =
     let formattedResult = result.ToString()
 
      
-    System.Diagnostics.Debug.WriteLine(formattedResult) 
+    //System.Diagnostics.Debug.WriteLine(formattedResult) 
 
     formattedResult
 
@@ -700,15 +680,11 @@ let evaluateExpression (input: string) : string =
     let statements = splitString ';' input
     let calculusResult = [| "" |]  
     let flag = [| false |]  
-    System.Diagnostics.Debug.WriteLine("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
 
     let processStatement (state: State) (statement: string) : State =
         let trimmedStatement = statement.Trim()
         if trimmedStatement <> "" then
             let tokenList = lexer trimmedStatement
-            System.Diagnostics.Debug.WriteLine("******Token List: " + string tokenList)
-
-             
            
             match tokenList with
                 | Derivative "x" :: Lpar :: _ -> 
@@ -717,10 +693,8 @@ let evaluateExpression (input: string) : string =
 
 
                     let result = evaluateCalculus trimmedStatement
-                    System.Diagnostics.Debug.WriteLine("Result from evaluateCalculus: " + result)
                     calculusResult.[0] <- result  
                     flag.[0] <- true   
-                    System.Diagnostics.Debug.WriteLine("Result from evaluateCalculus###: " + calculusResult.[0])
                     { state with lastResult = 0.0 } 
                 | IntegralStart :: _ -> 
                     let (_, parsedExpr) = parseExpr tokenList
@@ -754,9 +728,6 @@ let evaluateExpression (input: string) : string =
     else
         calculusResult.[0]
 
-let example1 = "Integral(0,1,x^2)"
-let exampleResult = evaluateExpression example1
-System.Diagnostics.Debug.WriteLine("Result of Integral:" + exampleResult)
 
 
 let evaluateNumericalIntegration (input: string) (lower: float) (upper: float) (interval: float) =
@@ -766,8 +737,8 @@ let evaluateNumericalIntegration (input: string) (lower: float) (upper: float) (
     // Replace Integral with its inner function
     let rec extractInnerFunction expr =
         match expr with
-        | Integral (_, _, f) -> f  // Extract the inner function
-        | _ -> expr               // Default case for non-Integral expressions
+        | Integral (_, _, f) -> f  
+        | _ -> expr               
 
     let innerFunction = extractInnerFunction parsedExpr
 
@@ -785,19 +756,15 @@ let evaluateNumericalIntegration (input: string) (lower: float) (upper: float) (
 let evaluateDerivativeAt (input: string) (xValue: float) : float =
     try
         let derivativeExpr = evaluateCalculus input
-        System.Diagnostics.Debug.WriteLine($"Computed Derivative Expression: {derivativeExpr}")
 
         let formattedExpr = Regex.Replace(derivativeExpr, @"(\d)([a-zA-Z])", "$1 * $2")
-        System.Diagnostics.Debug.WriteLine($"Formatted Derivative Expression: {formattedExpr}")
 
         let tokenList = lexer formattedExpr
-        System.Diagnostics.Debug.WriteLine($"Derivative Tokens: {tokenList}")
 
         let (_, parsedExpr) = parseExpr tokenList
-        System.Diagnostics.Debug.WriteLine($"Parsed Derivative Expression: {parsedExpr}")
-
+       
         let result = evaluate parsedExpr "x" xValue
-        System.Diagnostics.Debug.WriteLine($"Evaluated Derivative at x={xValue}: {result}")
+        
         result
     with
     | ex ->
@@ -806,25 +773,6 @@ let evaluateDerivativeAt (input: string) (xValue: float) : float =
 
 
 
-
-
-//let evaluateCalculus (input: string) : string = 
-//    let tokenList = lexer input
-
-//    // Call the parseExpr function and assign the result to a variable
-//    let (_, parsedExpr) = parseExpr tokenList
-//    System.Diagnostics.Debug.WriteLine("$$$$$Parsed List: " + string parsedExpr)
-
-//    let derivative = differentiate parsedExpr "x"
-//    let simplifiedDerivative = simplify derivative
-//    let result = exprToString simplifiedDerivative
-
-//    let formattedResult = result.ToString()
-
-     
-//    System.Diagnostics.Debug.WriteLine(formattedResult) 
-
-//    formattedResult
 
 
 let evaluatePolynomial (input: string) : string =
@@ -839,11 +787,9 @@ let evaluatePolynomial (input: string) : string =
         // Check if the expression has a valid form: y = [expression with x]
         else
             let tokenList = lexer trimmedInput
-            System.Diagnostics.Debug.WriteLine("Token List: " + string tokenList)
 
             let (parsedList, result) = parseAssignment tokenList
-            System.Diagnostics.Debug.WriteLine("Parsed List: " + string parsedList)
-            System.Diagnostics.Debug.WriteLine("Result: " + string result)
+            
 
             validateTokens tokenList parsedList
 
@@ -860,11 +806,9 @@ let evaluatePolynomial (input: string) : string =
     with
     | :? System.Exception as ex when ex.Message.StartsWith("Variable 'x'") && ex.Message.Contains("is not defined") ->
         // Handle undefined variable exception
-        System.Diagnostics.Debug.WriteLine("Handled undefined variable: " + ex.Message)
         "Valid polynomial." 
 
     | :? System.Exception as ex ->
-        System.Diagnostics.Debug.WriteLine("Error: " + ex.Message)
         "Invalid polynomial. Check your input expression."
 
 
@@ -919,9 +863,6 @@ let evaluatePolynomialForLoop (input: string) (expression: string) : float list 
             let xValues = List.map fst points
             let yValues = List.map snd points
 
-            System.Diagnostics.Debug.WriteLine($"xValues: {xValues}")
-            System.Diagnostics.Debug.WriteLine($"yValues: {yValues}")
-
             (xValues, yValues)
         else
             failwith "Invalid for loop statement"
@@ -937,7 +878,6 @@ let splineInterpolation (xValues: float list) (yValues: float list) (queryX: flo
 let evaluateExpressionForCompiler (input: string) : string =
     // Tokenize the input string
     let tokenList = lexer input
-    System.Diagnostics.Debug.WriteLine("******Token List: " + string tokenList)
     
     // Parse and evaluate the token list
     let (remaining, result) = parseExpr tokenList
@@ -949,7 +889,6 @@ let evaluateExpressionForCompiler (input: string) : string =
         else
             result.ToString()
     
-    System.Diagnostics.Debug.WriteLine("Final Result: " + formattedResult)
     formattedResult
 
 // Generate Python Code

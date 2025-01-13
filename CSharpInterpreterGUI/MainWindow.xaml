@@ -106,8 +106,7 @@
             <Button Content="Min" Width="60" Margin="0,0,10,0" Background="LightGreen" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Max" Width="60" Margin="0,0,10,0" Background="Yellow" Style="{StaticResource CalcButton}" Click="Button_Click"/>
             <Button Content="Tanspiler" Width="60" Margin="0,0,10,0" Background="Red" Style="{StaticResource CalcButton}" Click="OpenTranspilerWindow_Click"/>
-            <!--<Button Content="Open Transpiler" Width="60" Margin="0,0,10,0" Background="Purple" Style="{StaticResource CalcButton}" Click="OpenTranspilerWindow_Click"/>-->
-           
+            
         </StackPanel>
 
 

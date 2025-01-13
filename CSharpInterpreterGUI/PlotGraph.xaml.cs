@@ -69,8 +69,8 @@ namespace CSharpInterpreterGUI
                 // Add data points to the area series
                 for (int i = 0; i < xValues.Count; i++)
                 {
-                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
-                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));         // Baseline (y = 0)
+                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); 
+                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));         
                 }
 
                 // Add the area series to the plot model
@@ -81,9 +81,9 @@ namespace CSharpInterpreterGUI
             var series = new LineSeries
             {
                 Title = "f(x)",
-                MarkerType = MarkerType.None, // No markers for data points
-                StrokeThickness = 2,          // Thickness of the curve
-                Color = OxyColors.Red         // Color of the curve
+                MarkerType = MarkerType.None, 
+                StrokeThickness = 2,          
+                Color = OxyColors.Red         
             };
 
             // Add data points to the series
@@ -99,7 +99,7 @@ namespace CSharpInterpreterGUI
             // Add tangent lines if derivative is provided
             if (derivative != null)
             {
-                foreach (var x in xValues.Where((_, index) => index % 10 == 0)) // Tangents at intervals
+                foreach (var x in xValues.Where((_, index) => index % 10 == 0)) 
                 {
                     double y = yValues[xValues.IndexOf(x)];
                     double slope = derivative(x);

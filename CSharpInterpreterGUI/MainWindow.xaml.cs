@@ -63,7 +63,7 @@ namespace CSharpInterpreterGUI
                 {
                     // Show the Integral input dialog
                     var dialog = new IntegralInputDialog();
-                    dialog.Owner = this; // Set owner to the current window
+                    dialog.Owner = this; 
                     if (dialog.ShowDialog() == true && dialog.IsConfirmed)
                     {
                         // Update expression with user inputs
@@ -74,7 +74,7 @@ namespace CSharpInterpreterGUI
                     else
                     {
                         Debug.WriteLine($"######Expression: '{expression}'");
-                        return; // User canceled
+                        return; 
                     }
                 }
 
@@ -127,31 +127,7 @@ namespace CSharpInterpreterGUI
             }
         }
 
-        //private void Differential_Click(object sender, RoutedEventArgs e)
-        //{
-        //    // Get the expression from the input box
-        //    string expression = displayTextBox.Text.TrimStart('>', '>').Trim();
-        //    string formattedOutput = "";
-        //    Debug.WriteLine($"Processed Expression: '{expression}'");
-
-        //    if (string.IsNullOrWhiteSpace(expression))
-        //    {
-        //        return; 
-        //    }
-
-        //    string result = ArithmeticInterpreter.evaluateCalculus(expression);
-
-        //    formattedOutput = $">> {expression}\n{result}\n";
-
-        //    // Add the new entry to the top of the history
-        //    workspaceHistory.Insert(0, formattedOutput);
-
-        //    // Update the workspace history box
-        //    workspaceHistoryBox.Text = string.Join("\n", workspaceHistory);
-
-        //    // Clear the input box for the next entry
-        //    displayTextBox.Clear();
-        //}
+        
 
         private void ClearHistory_Click(object sender, RoutedEventArgs e)
         {
@@ -167,13 +143,7 @@ namespace CSharpInterpreterGUI
             //ResetPlotTypeComboBox(0);
         }
 
-        //private void Backspace_Click(object sender, RoutedEventArgs e)
-        //{
-        //    if (displayTextBox.Text.Length > 0)
-        //    {
-        //        displayTextBox.Text = displayTextBox.Text.Substring(0, displayTextBox.Text.Length - 1);
-        //    }
-        //}
+        
 
         private void ToggleMode_Click(object sender, RoutedEventArgs e)
         {
@@ -190,8 +160,6 @@ namespace CSharpInterpreterGUI
                 ModeButton.Content = "Scientific";
             }
         }
-
-
 
 
         private void ScientificButton_Click(object sender, RoutedEventArgs e)
@@ -224,7 +192,7 @@ namespace CSharpInterpreterGUI
             if (!textBox.Text.StartsWith(prompt))
             {
                 textBox.Text = prompt;
-                textBox.CaretIndex = textBox.Text.Length; // Move caret to the end
+                textBox.CaretIndex = textBox.Text.Length; 
             }
             else
             {
@@ -481,17 +449,17 @@ namespace CSharpInterpreterGUI
                 // Try to parse the input text values
                 if (!double.TryParse(xMinText, out xMin))
                 {
-                    xMin = -5.0; // Default value if parsing fails
+                    xMin = -5.0; 
                 }
 
                 if (!double.TryParse(xMaxText, out xMax))
                 {
-                    xMax = 5.0; // Default value if parsing fails
+                    xMax = 5.0; 
                 }
 
                 if (!double.TryParse(xStepText, out step) || step <= 0)
                 {
-                    step = 0.5; // Default value if parsing fails or invalid step
+                    step = 0.5; 
                 }
 
              
@@ -699,8 +667,8 @@ namespace CSharpInterpreterGUI
                         // Add points to the area series
                         for (int i = 0; i < xList.Count; i++)
                         {
-                            areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
-                            areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        // Baseline (y = 0)
+                            areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); 
+                            areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        
                         }
 
                         // Add the area series to the plot model
@@ -936,8 +904,8 @@ namespace CSharpInterpreterGUI
                 // Add points to the area series
                 for (int i = 0; i < xList.Count; i++)
                 {
-                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); // Curve points
-                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        // Baseline (y = 0)
+                    areaSeries.Points.Add(new DataPoint(xValues[i], yValues[i])); 
+                    areaSeries.Points2.Add(new DataPoint(xValues[i], 0));        
                 }
 
                 // Add the area series to the plot model
@@ -996,17 +964,17 @@ namespace CSharpInterpreterGUI
                 // Try to parse the input text values
                 if (!double.TryParse(xMinText, out xMin))
                 {
-                    xMin = -5.0; // Default value if parsing fails
+                    xMin = -5.0; 
                 }
 
                 if (!double.TryParse(xMaxText, out xMax))
                 {
-                    xMax = 5.0; // Default value if parsing fails
+                    xMax = 5.0; 
                 }
 
                 if (!double.TryParse(xStepText, out step) || step <= 0)
                 {
-                    step = 0.5; // Default value if parsing fails or invalid step
+                    step = 0.5; 
                 }
                 var xValues = Enumerable.Range((int)(xMin / step), (int)((xMax - xMin) / step) + 1)
                                         .Select(i => i * step)
@@ -1123,61 +1091,6 @@ namespace CSharpInterpreterGUI
             TranspilerWindow transpilerWindow = new TranspilerWindow(interpreterCode);
             transpilerWindow.Show();
         }
-
-
-
-        //private void DefiniteIntegral_Click(object sender, RoutedEventArgs e)
-        //{
-        //    try
-        //    {
-        //        // Prompt for the for-loop expression
-        //        MessageBox.Show("Enter the for-loop expression:", "For Loop Required", MessageBoxButton.OK, MessageBoxImage.Information);
-
-        //        // Get the values from the TextBoxes
-        //        string xMinText = XMinTextBox.Text;
-        //        string xMaxText = XMaxTextBox.Text;
-        //        string xStepText = XStepTextBox.Text;
-        //        string input = displayTextBox.Text.TrimStart('>', '>').Trim();
-
-        //        // Try to parse the values to doubles
-        //        if (!double.TryParse(xMinText, out double lower) ||
-        //            !double.TryParse(xMaxText, out double upper) ||
-        //            !double.TryParse(xStepText, out double interval))
-        //        {
-        //            MessageBox.Show("Please enter valid numeric values for X Min, X Max, and X Step.");
-        //            return;
-        //        }
-
-        //        // Replace ∫ with Integral in the expression
-        //        input = input.Replace('∫', "Integral");
-        //        input = $"Integral({lower},{upper},{input.Substring(input.IndexOf('(') + 1)})";
-
-        //        // Call the F# function to evaluate the area under the curve
-        //        var plotModel = ArithmeticInterpreter.displayAreaUnderCurve(input, lower, upper, interval);
-
-        //        // Display the plot
-        //        PlotView plotView = new PlotView
-        //        {
-        //            Model = plotModel,
-        //            Width = 600,
-        //            Height = 400
-        //        };
-
-        //        Window plotWindow = new Window
-        //        {
-        //            Title = "Area Under Curve",
-        //            Content = plotView,
-        //            Width = 800,
-        //            Height = 600
-        //        };
-        //        plotWindow.ShowDialog();
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        MessageBox.Show($"Error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-        //    }
-        //}
-
 
 
     }
