@@ -57,6 +57,8 @@ namespace CSharpInterpreterGUI
                 // Get the expression from the input box
                 string expression = displayTextBox.Text.TrimStart('>', '>').Trim();
                 expression = expression.Replace('×', '*').Replace('÷', '/');
+                expression = expression.Replace("e", "*2.7");
+                
                 if (expression.Contains("∫"))
                 {
                     // Show the Integral input dialog
